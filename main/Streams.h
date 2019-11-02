@@ -100,7 +100,7 @@ public:
             _buffer.pop_front();
         _buffer.push_back(event);
     };
-    void getNext(T t)
+    void getNext(T& t)
     {
         t = _buffer.front();
         _buffer.pop_front();
@@ -112,7 +112,24 @@ public:
 };
 //______________________________________________________________________________
 //
+template <class T>
+class LastValueSink : public AbstractSink<T>
+{
+    T _value;
 
+public:
+    LastValueSink() {}
+    void recv(T value)
+    {
+        _value=value;
+    }
+    T value()
+    {
+        return _value;
+    }
+};
+//______________________________________________________________________________
+//
 template <class T>
 class PropertyFlow : public Flow<T,T>
 {
@@ -141,29 +158,14 @@ public:
     }
 };
 
-template <class T>
-class LastValueSink : public AbstractSink<T>
-{
-    T _value;
 
-public:
-    LastValueSink() {}
-    void recv(T value)
-    {
-        _value=value;
-    }
-    T value()
-    {
-        return _value;
-    }
-};
-/*
+
 template <class T>
 void operator|(Flow<T,T>& x,Flow<T,T>& y)
 {
     x >> y;
     y >> x;
-}*/
+}
 
 
 #endif

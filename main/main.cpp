@@ -5,6 +5,45 @@
 #include <LedBlinker.h>
 #include "freertos/task.h"
 
+template <class T>
+class MqttSource : public Source<MqttMessage>
+{
+    std::string _name;
+    T& _v;
+public:
+    MqttSource(const char* name,T& v):_v(v),_name(name) {};
+    void txd()
+    {
+        std::string s;
+        DynamicJsonDocument doc(100);
+        JsonVariant variant = doc.to<JsonVariant>();
+        variant.set(_v);
+        serializeJson(doc, s);
+        this->emit({_name, s});
+    }
+};
+
+template <class T>
+class MqttLambdaSource : public Source<MqttMessage>
+{
+    std::string _name;
+    std::function<T()> _handler;
+public:
+    MqttLambdaSource(const char* name,std::function<T()> handler):_handler(handler),_name(name) {};
+    void txd()
+    {
+        std::string s;
+        DynamicJsonDocument doc(100);
+        JsonVariant variant = doc.to<JsonVariant>();
+        T v = _handler();
+        variant.set((uint64_t)v);
+        serializeJson(doc, s);
+        this->emit({_name, s});
+    }
+};
+
+//______________________________________________________________________
+//
 #define PIN_LED 2
 
 LedBlinker led(PIN_LED,100);
@@ -12,12 +51,23 @@ LedBlinker led(PIN_LED,100);
 Wifi wifi;
 Mqtt mqtt;
 Log logger(1024);
+MqttLambdaSource<uint64_t> systemUptime("system/uptTime",[]()
+{
+    return Sys::millis();
+});
+MqttLambdaSource<uint32_t> systemHeap("system/heap",[]()
+{
+    return xPortGetFreeHeapSize();
+});
+//______________________________________________________________________
+//
 
 class Publisher : public ProtoThread, public Source<MqttMessage>
 {
     std::string _systemPrefix;
 
 public:
+    LastValueSink<bool> run;
     Publisher() : ProtoThread("Publisher") {};
     void setup()
     {
@@ -29,15 +79,18 @@ public:
 
         PT_BEGIN();
         while (true) {
-            string_format(s,"%s%s",_systemPrefix.c_str(),"upTime");
-            emit({s,"1000"});
+            if ( run.value() ) {
+                systemUptime.txd();
+                systemHeap.txd();
+            }
             timeout(1000);
             PT_YIELD_UNTIL(timeout());
         }
         PT_END();
     }
 };
-
+//______________________________________________________________________
+//
 Publisher publisher;
 
 extern "C" void app_main(void)
@@ -45,7 +98,10 @@ extern "C" void app_main(void)
     ProtoThread::setupAll();
     wifi.connected >> mqtt.wifiConnected;
     mqtt.connected >> led;
+    mqtt.connected >> publisher.run;
     publisher >> mqtt;
+    systemUptime >> mqtt;
+    systemHeap >> mqtt;
 
     while(true) {
         ProtoThread::loopAll();

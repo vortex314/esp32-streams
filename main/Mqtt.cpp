@@ -23,6 +23,7 @@ Mqtt::Mqtt():ProtoThread("mqtt"),BufferedSink<MqttMessage>(10),_reportTimer(1000
 {
     string_format(_address,"mqtt://%s:%d",S(MQTT_HOST),MQTT_PORT);
     string_format(_lwt_topic,"src/%s/system/alive",Sys::hostname());
+    string_format(_hostPrefix,"src/%s/",Sys::hostname());
     _lwt_message="false";
 }
 
@@ -72,9 +73,10 @@ void Mqtt::loop()
         if ( hasNext() ) {
             MqttMessage m;
             getNext(m);
-            INFO(" publishing %s : %s ",m.topic.c_str(),m.message.c_str());
             if ( _connected ) {
-                mqttPublish(m.topic.c_str(),m.message.c_str());
+                std::string topic=_hostPrefix;
+                topic+= m.topic;
+                mqttPublish(topic.c_str(),m.message.c_str());
             };
         };
         if ( timeout() ) {
@@ -175,7 +177,7 @@ typedef enum {
 void Mqtt::mqttPublish(const char* topic, const char* message)
 {
     if (_connected == false) return;
-    INFO("PUB : %s = %s", topic, message);
+    //INFO("PUB : %s = %s", topic, message);
     int id = esp_mqtt_client_publish(_mqttClient, topic, message, 0, 1, 0);
     if (id < 0)
         WARN("esp_mqtt_client_publish() failed.");
