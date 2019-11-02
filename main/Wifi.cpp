@@ -1,7 +1,14 @@
-#include <../Common/Config.h>
+#include <Config.h>
 #include "Wifi.h"
 
-#define SSID_DEFAULT "Merckx"
+#ifndef WIFI_SSID
+#error "WIFI_SSID should be defined !"
+#endif
+
+#ifndef WIFI_PASS
+#error "WIFI_PASS should be defined !"
+#endif
+
 #define STRINGIFY(X) #X
 #define S(X) STRINGIFY(X)
 #define CHECK(x)                                                               \
@@ -12,23 +19,15 @@
         }                                                                      \
     } while (0);
 
-template <class T > 
-void operator|(Flow<T,T> x,Flow<T,T> y){
-    x >> y;
-    y >> x;
-}
+
 
 PropertyFlow<double> rssi("rssi");
 
-Wifi::Wifi() : ProtoThread("wifi")
+Wifi::Wifi() : ProtoThread("wifi"),rssi(_rssi)
 {
     _rssi = 0;
-    JsonObject myConfig = config.root()["wifi"];
-    _prefix = myConfig["prefix"] | SSID_DEFAULT;
-    _pswd = myConfig["password"] | "";
- 
-    
-
+    _prefix = S(WIFI_SSID) ;
+    _pswd = S(WIFI_PASS);
 }
 
 Wifi::~Wifi()
@@ -41,13 +40,14 @@ void Wifi::setup()
     esp_base_mac_addr_get(_mac);
 }
 
-void Wifi::loop(){
-PT_BEGIN();
-while(true){
-    timeout(1000);
-PT_YIELD_UNTIL(timeout());
-}
-PT_END();
+void Wifi::loop()
+{
+    PT_BEGIN();
+    while(true) {
+        timeout(1000);
+        PT_YIELD_UNTIL(timeout());
+    }
+    PT_END();
 }
 
 //#define BZERO(x) ::memset(&x, sizeof(x), 0)
@@ -164,6 +164,8 @@ void Wifi::startScan()
 
 void Wifi::wifiInit()
 {
+    nvs_flash_init();
+
     tcpip_adapter_init();
     CHECK(esp_event_loop_init(wifi_event_handler, this));
     wifi_init_config_t wifiInitializationConfig = WIFI_INIT_CONFIG_DEFAULT()

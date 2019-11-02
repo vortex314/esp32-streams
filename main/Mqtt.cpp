@@ -9,32 +9,20 @@
 //#define BZERO(x) ::memset(&x, 0, sizeof(x))
 
 #ifndef MQTT_HOST
-#define MQTT_HOST "iot.eclipse.org"
+#error "check MQTT_HOST definition "
 #endif
 #ifndef MQTT_PORT
-#define MQTT_PORT 1883
+#error "check MQTT_PORT definition"
 #endif
-
+#define STRINGIFY(X) #X
+#define S(X) STRINGIFY(X)
 
 
 Mqtt::Mqtt():ProtoThread("mqtt"),BufferedSink<MqttMessage>(10),_reportTimer(1000,true,true)
-    
+
 {
-    JsonObject myConfig=config.root()["mqtt"];
-    _connected = false;
-
-    std::string ipAddr;
-    int port= myConfig["port"] | MQTT_PORT ;
-    const char* host = myConfig["host"] | S(MQTT_HOST);
-    string_format(_address,"mqtt://%s:%d",host,port);
-    INFO("mqtt url '%s' ",_address.c_str());
-    myConfig["host"]=host;
-    myConfig["port"]=port;
-
-
-    _mqttClient = 0;
-    _lwt_topic="src/";
-    _lwt_topic.append(Sys::hostname()).append("/system/alive");
+    string_format(_address,"mqtt://%s:%d",S(MQTT_HOST),MQTT_PORT);
+    string_format(_lwt_topic,"src/%s/system/alive",Sys::hostname());
     _lwt_message="false";
 }
 
@@ -44,15 +32,10 @@ Mqtt::~Mqtt()
 
 void Mqtt::setup()
 {
-    DEBUG(" MQTT preStart");
-_clientId=Sys::hostname();
-
+    _clientId=Sys::hostname();
 //	esp_log_level_set("*", ESP_LOG_VERBOSE);
-
     esp_mqtt_client_config_t mqtt_cfg;
     BZERO(mqtt_cfg);
-    /*	std::string url="mqtt://";
-    	url +=*/
     INFO(" uri : %s ",_address.c_str());
 
     mqtt_cfg.uri = _address.c_str();
@@ -69,31 +52,35 @@ _clientId=Sys::hostname();
 
     _reportTimer.start();
 
-    wifiConnected.handler([=](bool connected){ 
-    if ( connected ){
-        esp_mqtt_client_start(_mqttClient);
-    } else {
-        esp_mqtt_client_stop(_mqttClient);
-    }
+    wifiConnected.handler([=](bool connected) {
+        if ( connected ) {
+            esp_mqtt_client_start(_mqttClient);
+        } else {
+            if ( _connected )
+                esp_mqtt_client_stop(_mqttClient);
+        }
     });
 
 }
 
-void Mqtt::loop(){
+void Mqtt::loop()
+{
     PT_BEGIN();
     timeout(1000);
-    while(true){
+    while(true) {
         PT_YIELD_UNTIL(hasNext()||timeout()||_reportTimer.timeout());
         if ( hasNext() ) {
             MqttMessage m;
             getNext(m);
-            mqttPublish(m.topic.c_str(),m.message.c_str());
+            INFO(" publishing %s : %s ",m.topic.c_str(),m.message.c_str());
+            if ( _connected ) {
+                mqttPublish(m.topic.c_str(),m.message.c_str());
+            };
         };
         if ( timeout() ) {
-            // publish own properties
             timeout(1000);
         }
-        if ( _reportTimer.timeout() ){
+        if ( _reportTimer.timeout() ) {
             mqttPublish(_lwt_topic.c_str(),"true");
             _reportTimer.start();
         }
@@ -110,12 +97,13 @@ int Mqtt::mqtt_event_handler(esp_mqtt_event_t* event)
     int msg_id;
 
     switch (event->event_id) {
-        case MQTT_EVENT_BEFORE_CONNECT:{
-            
-        }
+    case MQTT_EVENT_BEFORE_CONNECT: {
+
+    }
     case MQTT_EVENT_CONNECTED: {
         me._connected = true;
         INFO("MQTT_EVENT_CONNECTED to %s",me._address.c_str());
+        INFO(" session : %d %d ", event->session_present,event->msg_id);
         msg_id =
             esp_mqtt_client_publish(me._mqttClient, "src/limero/systems", Sys::hostname(), 0, 1, 0);
         topics = "dst/";
@@ -187,7 +175,7 @@ typedef enum {
 void Mqtt::mqttPublish(const char* topic, const char* message)
 {
     if (_connected == false) return;
-//	INFO("PUB : %s = %s", topic, message);
+    INFO("PUB : %s = %s", topic, message);
     int id = esp_mqtt_client_publish(_mqttClient, topic, message, 0, 1, 0);
     if (id < 0)
         WARN("esp_mqtt_client_publish() failed.");
