@@ -36,7 +36,7 @@ public:
         DynamicJsonDocument doc(100);
         JsonVariant variant = doc.to<JsonVariant>();
         T v = _handler();
-        variant.set((uint64_t)v);
+        variant.set(v);
         serializeJson(doc, s);
         this->emit({_name, s});
     }
@@ -58,6 +58,24 @@ MqttLambdaSource<uint64_t> systemUptime("system/uptTime",[]()
 MqttLambdaSource<uint32_t> systemHeap("system/heap",[]()
 {
     return xPortGetFreeHeapSize();
+});
+MqttLambdaSource<std::string> systemHostname("system/hostname",[]()
+{
+    return Sys::hostname();
+});
+MqttLambdaSource< int> rssiSource("wifi/rssi",[]()
+{
+    return wifi.rssi();
+});
+
+MqttLambdaSource< std::string> wifiIpAddress("wifi/ipAddress",[]()
+{
+    return wifi.ipAddress();
+});
+
+MqttLambdaSource< std::string> wifiSsid("wifi/ssid",[]()
+{
+    return wifi.ssid();
 });
 //______________________________________________________________________
 //
@@ -82,8 +100,12 @@ public:
             if ( run.value() ) {
                 systemUptime.txd();
                 systemHeap.txd();
+                systemHostname.txd();
+                rssiSource.txd();
+                wifiIpAddress.txd();
+                wifiSsid.txd();
             }
-            timeout(1000);
+            timeout(100);
             PT_YIELD_UNTIL(timeout());
         }
         PT_END();
@@ -102,6 +124,10 @@ extern "C" void app_main(void)
     publisher >> mqtt;
     systemUptime >> mqtt;
     systemHeap >> mqtt;
+    systemHostname >> mqtt;
+    rssiSource >> mqtt;
+    wifiSsid >> mqtt;
+    wifiIpAddress >> mqtt;
 
     while(true) {
         ProtoThread::loopAll();

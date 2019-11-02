@@ -23,7 +23,7 @@
 
 PropertyFlow<double> rssi("rssi");
 
-Wifi::Wifi() : ProtoThread("wifi"),rssi(_rssi)
+Wifi::Wifi() : ProtoThread("wifi")
 {
     _rssi = 0;
     _prefix = S(WIFI_SSID) ;
@@ -176,4 +176,20 @@ void Wifi::wifiInit()
     CHECK(esp_wifi_set_promiscuous(false));
     CHECK(esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B));
     CHECK(esp_wifi_start());
+}
+
+
+std::string Wifi::ipAddress()
+{
+    return _ipAddress;
+}
+
+int Wifi::rssi()
+{
+    return _rssi;
+}
+
+std::string Wifi::ssid()
+{
+    return _ssid;
 }

@@ -96,8 +96,10 @@ public:
     BufferedSink(uint32_t size) : _queueDepth(size) {}
     void recv(T event)
     {
-        if (_buffer.size() >= _queueDepth)
+        if (_buffer.size() >= _queueDepth) {
             _buffer.pop_front();
+            WARN(" buffer overflow in BufferedSink ");
+        }
         _buffer.push_back(event);
     };
     void getNext(T& t)

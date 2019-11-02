@@ -25,7 +25,9 @@ class Wifi : public ProtoThread
 
 public:
     Source<bool> connected;
-    const int& rssi;
+    int rssi();
+    std::string ipAddress();
+    std::string ssid();
 
     Wifi( );
     ~Wifi();
