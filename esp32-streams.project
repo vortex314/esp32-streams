@@ -5,7 +5,26 @@
       <![CDATA[00010001N0005Debug000000000000]]>
     </Plugin>
   </Plugins>
+  <File Name="components/remote/component.mk"/>
   <VirtualDirectory Name="components">
+    <VirtualDirectory Name="motorSpeed">
+      <File Name="components/motorSpeed/MotorSpeed.h"/>
+      <File Name="components/motorSpeed/MotorSpeed.cpp"/>
+      <File Name="components/motorSpeed/BTS7960.h"/>
+      <File Name="components/motorSpeed/BTS7960.cpp"/>
+      <File Name="components/motorSpeed/RotaryEncoder.h"/>
+      <File Name="components/motorSpeed/RotaryEncoder.cpp"/>
+      <File Name="components/motorSpeed/component.mk"/>
+    </VirtualDirectory>
+    <VirtualDirectory Name="remote">
+      <File Name="components/remote/Controller.cpp"/>
+      <File Name="components/remote/Controller.h"/>
+      <File Name="components/remote/Led.h"/>
+      <File Name="components/remote/Led.cpp"/>
+      <File Name="components/remote/Pot.cpp"/>
+      <File Name="components/remote/Pot.h"/>
+      <File Name="components/remote/MedianFilter.h"/>
+    </VirtualDirectory>
     <VirtualDirectory Name="ultrasonic">
       <File Name="components/ultrasonic/component.mk"/>
       <File Name="components/ultrasonic/UltraSonic.h"/>
@@ -39,8 +58,8 @@
   <Reconciliation>
     <Regexes/>
     <Excludepaths>
-      <Path>build/</Path>
       <Path>Debug/</Path>
+      <Path>build/</Path>
     </Excludepaths>
     <Ignorefiles/>
     <Extensions>
@@ -86,7 +105,7 @@
       <CustomBuild Enabled="yes">
         <RebuildCommand/>
         <CleanCommand>make clean</CleanCommand>
-        <BuildCommand>make STEER_WIFI</BuildCommand>
+        <BuildCommand>make MOTOR_WIFI</BuildCommand>
         <PreprocessFileCommand/>
         <SingleFileCommand/>
         <MakefileGenerationCommand/>

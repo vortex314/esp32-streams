@@ -31,13 +31,13 @@ REMOTE :
 	touch main/main.cpp
 	make DEFINE="-DREMOTE=1 -DHOSTNAME=remote -DMQTT_HOST=limero.ddns.net" 
 	
-SPEED_WIFI :
+MOTOR_WIFI :
 	touch main/main.cpp
-	make DEFINE="-DMOTORSPEED=1 -DHOSTNAME=drive"
+	make DEFINE="-DMOTOR=1 -DHOSTNAME=motor"
 	
 STEER_WIFI :
 	touch main/main.cpp
-	make DEFINE="-DMOTORSERVO=2 -DHOSTNAME=drive"
+	make DEFINE="-DSERVO=2 -DHOSTNAME=steer"
 	
 DRIVE :
 	touch main/main.cpp
