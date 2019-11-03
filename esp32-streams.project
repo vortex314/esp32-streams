@@ -5,21 +5,36 @@
       <![CDATA[00010001N0005Debug000000000000]]>
     </Plugin>
   </Plugins>
-  <VirtualDirectory Name="components"/>
+  <VirtualDirectory Name="components">
+    <VirtualDirectory Name="ultrasonic">
+      <File Name="components/ultrasonic/component.mk"/>
+      <File Name="components/ultrasonic/UltraSonic.h"/>
+      <File Name="components/ultrasonic/UltraSonic.cpp"/>
+      <File Name="components/ultrasonic/HCSR04.h"/>
+      <File Name="components/ultrasonic/HCSR04.cpp"/>
+    </VirtualDirectory>
+    <VirtualDirectory Name="gps">
+      <File Name="components/gps/component.mk"/>
+      <File Name="components/gps/Neo6m.h"/>
+      <File Name="components/gps/Neo6m.cpp"/>
+    </VirtualDirectory>
+  </VirtualDirectory>
   <VirtualDirectory Name="main">
+    <File Name="main/coroutine.cpp"/>
+    <File Name="main/coroutine.h"/>
     <File Name="main/LedBlinker.cpp"/>
     <File Name="main/LedBlinker.h"/>
     <File Name="main/sdkconfig.h"/>
     <File Name="main/Streams.h"/>
     <File Name="main/Streams.cpp"/>
-    <File Name="main/ProtoThread.h"/>
-    <File Name="main/ProtoThread.cpp"/>
     <File Name="main/component.mk"/>
     <File Name="main/Mqtt.h"/>
     <File Name="main/Mqtt.cpp"/>
     <File Name="main/Wifi.cpp"/>
     <File Name="main/Wifi.h"/>
     <File Name="main/main.cpp"/>
+    <File Name="main/Hardware_ESP32.cpp"/>
+    <File Name="main/Hardware.h"/>
   </VirtualDirectory>
   <Reconciliation>
     <Regexes/>

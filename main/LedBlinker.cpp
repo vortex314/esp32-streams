@@ -2,7 +2,7 @@
 
 #define PIN_LED 2
 
-LedBlinker::LedBlinker(uint32_t pin, uint32_t delay) : ProtoThread("LedBlinker")
+LedBlinker::LedBlinker(uint32_t pin, uint32_t delay) : Coroutine("LedBlinker")
 {
     _pin = pin;
     _delay = delay;

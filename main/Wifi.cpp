@@ -23,7 +23,7 @@
 
 PropertyFlow<double> rssi("rssi");
 
-Wifi::Wifi() : ProtoThread("wifi")
+Wifi::Wifi() : Coroutine("wifi")
 {
     _rssi = 0;
     _prefix = S(WIFI_SSID) ;

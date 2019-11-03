@@ -3,7 +3,7 @@
 
 #include <Log.h>
 #include <Streams.h>
-#include <ProtoThread.h>
+#include <coroutine.h>
 
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
@@ -14,7 +14,7 @@
 #include "nvs_flash.h"
 
 
-class Wifi : public ProtoThread
+class Wifi : public Coroutine
 {
     std::string _ssid;
     std::string _pswd;

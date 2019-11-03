@@ -1,12 +1,12 @@
 #ifndef LEDBLINKER_H
 #define LEDBLINKER_H
 
-#include <ProtoThread.h>
+#include <coroutine.h>
 #include <Streams.h>
 #include "driver/gpio.h"
 
 
-class LedBlinker : public ProtoThread,public HandlerSink<bool>
+class LedBlinker : public Coroutine,public HandlerSink<bool>
 {
     uint32_t _pin, _delay;
 
