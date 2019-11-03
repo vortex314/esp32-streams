@@ -56,6 +56,9 @@ void MotorSpeed::loop()
             KI.pub();
             KD.pub();
             KP.pub();
+            integral.pub();
+            derivative.pub();
+            proportional.pub();
             output.pub();
             rpmTarget.pub();
             current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
@@ -90,8 +93,8 @@ float MotorSpeed::PID(float err, float interval)
     integral = integral.get() + (err * interval);
     derivative = (err - _errorPrior) / interval;
     float integralPart = KI.get() * integral.get();
-    if ( integralPart > 20.0 ) integral =20.0 / KI.get();
-    if ( integralPart < -20.0 ) integral =-20.0 / KI.get();
+    if ( integralPart > 30 ) integral =30.0 / KI.get();
+    if ( integralPart < -30.0 ) integral =-30.0 / KI.get();
     float output = KP.get() * err + integralPart + KD.get() * derivative.get() + bias;
     _errorPrior = err;
     return output;

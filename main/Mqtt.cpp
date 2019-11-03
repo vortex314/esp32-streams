@@ -18,7 +18,7 @@
 #define S(X) STRINGIFY(X)
 
 
-Mqtt::Mqtt():Coroutine("mqtt"),BufferedSink<MqttMessage>(10),_reportTimer(1000,true,true)
+Mqtt::Mqtt():Coroutine("mqtt"),BufferedSink<MqttMessage>(20),_reportTimer(1000,true,true)
 
 {
     _lwt_message="false";
@@ -180,7 +180,7 @@ void Mqtt::mqttPublish(const char* topic, const char* message)
 {
     if (_connected == false) return;
     //INFO("PUB : %s = %s", topic, message);
-    int id = esp_mqtt_client_publish(_mqttClient, topic, message, 0, 1, 0);
+    int id = esp_mqtt_client_publish(_mqttClient, topic, message, 0, 0, 0);
     if (id < 0)
         WARN("esp_mqtt_client_publish() failed.");
 }

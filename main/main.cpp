@@ -134,10 +134,13 @@ Controller controller;
 #ifdef MOTOR
 #include <RotaryEncoder.h>
 #include <MotorSpeed.h>
+#include <MotorServo.h>
 
 Connector uextMotor(MOTOR);
 RotaryEncoder tacho(uextMotor.toPin(LP_SCL),uextMotor.toPin(LP_SDA));
 MotorSpeed motor(&uextMotor);
+Connector uextServo(2);
+MotorServo servo(&uextServo);
 #endif
 
 TimerSource timer1(100,1);
@@ -218,7 +221,7 @@ extern "C" void app_main(void)
     blockingPool.add(controller);
 #endif
 #ifdef MOTOR
-    tacho >> new ToMqtt<int32_t>("motor/rpm") >> mqtt;
+    tacho >> new ToMqtt<int32_t>("motor/rpmMeasured") >> mqtt;
     tacho >> motor.rpmMeasured;
 
     motor.output >> new ToMqtt<float>("motor/pwm") >> mqtt;
@@ -228,18 +231,21 @@ extern "C" void app_main(void)
     motor.rpmTarget >> new ToMqtt<int>("motor/rpmTarget") >> mqtt;
     mqtt >> new FromMqtt<int>("motor/rpmTarget") >> motor.rpmTarget;
 
+    servo.output >> new ToMqtt<float>("servo/pwm") >> mqtt;
+    servo.integral >> new ToMqtt<float>("servo/I") >> mqtt;
+    servo.derivative >> new ToMqtt<float>("servo/D") >> mqtt;
+    servo.proportional >> new ToMqtt<float>("servo/P") >> mqtt;
+    servo.angleTarget >> new ToMqtt<int>("servo/angleTarget") >> mqtt;
+    servo.angleMeasured >> new ToMqtt<int>("servo/angleMeasured") >> mqtt;
+    mqtt >> new FromMqtt<int>("servo/angleTarget") >> servo.angleTarget;
 
-    nonBlockingPool.add(tacho);
-    nonBlockingPool.add(motor);
+//    nonBlockingPool.add(tacho);
+//    nonBlockingPool.add(motor);
+    nonBlockingPool.add(servo);
 #endif
 
     blockingPool.setupAll();
     nonBlockingPool.setupAll();
-
-
-
-//	tacho >> new ToMqtt<double>("tacho/rpm") >> mqtt;
-//	mqtt >> new FromMqtt<double>("motor/speed") >> motor.speed;
 
     xTaskCreatePinnedToCore([](void*) {
         while(true) {

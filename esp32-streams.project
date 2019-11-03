@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Project Name="esp32-streams" Version="10.0.0" InternalType="Console">
+
   <Plugins>
     <Plugin Name="qmake">
       <![CDATA[00010001N0005Debug000000000000]]>
@@ -7,6 +8,11 @@
   </Plugins>
   <File Name="components/remote/component.mk"/>
   <VirtualDirectory Name="components">
+    <VirtualDirectory Name="servo">
+      <File Name="components/servo/component.mk"/>
+  <File Name="components/servo/MotorServo.h"/>
+  <File Name="components/servo/MotorServo.cpp"/>
+  </VirtualDirectory>
     <VirtualDirectory Name="motorSpeed">
       <File Name="components/motorSpeed/MotorSpeed.h"/>
       <File Name="components/motorSpeed/MotorSpeed.cpp"/>
@@ -58,8 +64,8 @@
   <Reconciliation>
     <Regexes/>
     <Excludepaths>
-      <Path>Debug/</Path>
       <Path>build/</Path>
+      <Path>Debug/</Path>
     </Excludepaths>
     <Ignorefiles/>
     <Extensions>

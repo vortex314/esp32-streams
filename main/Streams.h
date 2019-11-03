@@ -87,25 +87,39 @@ Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> *flow)
 };
 //______________________________________________________________________________
 //
+#include <FreeRTOS.h>
+#include <freertos/semphr.h>
 template <class T> class BufferedSink : public AbstractSink<T>
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
+    SemaphoreHandle_t xSemaphore = NULL;
 
 public:
-    BufferedSink(uint32_t size) : _queueDepth(size) {}
+    BufferedSink(uint32_t size) : _queueDepth(size)
+    {
+        xSemaphore = xSemaphoreCreateBinary();
+        xSemaphoreGive( xSemaphore );
+    }
     void recv(T event)
     {
-        if (_buffer.size() >= _queueDepth) {
-            _buffer.pop_front();
-            WARN(" buffer overflow in BufferedSink ");
+        if( xSemaphoreTake( xSemaphore, ( TickType_t ) 10 ) == pdTRUE ) {
+            if (_buffer.size() >= _queueDepth) {
+                _buffer.pop_front();
+                WARN(" buffer overflow in BufferedSink ");
+            }
+            _buffer.push_back(event);
+            xSemaphoreGive( xSemaphore );
         }
-        _buffer.push_back(event);
-    };
+    }
+
     void getNext(T& t)
     {
-        t = _buffer.front();
-        _buffer.pop_front();
+        if( xSemaphoreTake( xSemaphore, ( TickType_t ) 10 ) == pdTRUE ) {
+            t = _buffer.front();
+            _buffer.pop_front();
+            xSemaphoreGive( xSemaphore );
+        }
     }
     bool hasNext()
     {
