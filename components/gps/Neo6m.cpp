@@ -7,6 +7,13 @@ Neo6m::Neo6m(Connector* connector)
 Neo6m::~Neo6m() {
 }
 
+std::string stringify(std::string in) {
+	std::string out="\"";
+	out+=in;
+	out+="\"";
+	return out;
+}
+
 
 void Neo6m::setup() {
 	_uart.setClock(9600);
@@ -29,7 +36,7 @@ void Neo6m::handleRxd() {
 			if ( _line.size()>8 ) { // cannot use msgBuilder as out of thread
 				std::string topic="neo6m/";
 				topic+=_line.substr(1,5);
-				emit({topic,_line.substr(6)});
+				emit({topic,stringify(_line.substr(7))});
 			}
 			_line.clear();
 		} else {
