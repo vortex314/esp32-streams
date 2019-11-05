@@ -1,10 +1,10 @@
 #include "UltraSonic.h"
 
-UltraSonic::UltraSonic(Connector* connector):Coroutine("ultrasonic"),distance(&_distance) {
+UltraSonic::UltraSonic(Connector* connector):Coroutine("ultrasonic") {
 	_connector =connector;
 	_hcsr = new HCSR04(*_connector);
-	_distance=0;
-	_delay=0;
+	distance=0;
+	delay=0;
 }
 
 UltraSonic::~UltraSonic() {
@@ -22,11 +22,10 @@ void UltraSonic::loop() {
 		PT_YIELD_UNTIL(timeout());
 		int cm = _hcsr->getCentimeters();
 		if(cm < 400 && cm > 0) {
-			_distance = _distance + (cm - _distance) / 2;
-			_delay = _delay + (_hcsr->getTime() - _delay) / 2;
+			distance = distance() + (cm - distance()) / 2;
+			delay = delay() + (_hcsr->getTime() - delay()) / 2;
 		}
 		_hcsr->trigger();
-		distance.pub();
 	}
 	PT_END();
 }

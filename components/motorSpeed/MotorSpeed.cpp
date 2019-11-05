@@ -38,14 +38,14 @@ void MotorSpeed::loop()
         PT_YIELD_UNTIL(timeout() || _pulseTimer.timeout() || _reportTimer.timeout());
         if ( timeout() ) {
             static float newOutput;
-            error = rpmTarget.get() - rpmMeasured.get();
-            newOutput = PID(error.get(), CONTROL_INTERVAL_MS);
-            if (rpmTarget.get() == 0) {
+            error = rpmTarget() - rpmMeasured();
+            newOutput = PID(error(), CONTROL_INTERVAL_MS);
+            if (rpmTarget() == 0) {
                 newOutput = 0;
                 integral=0;
             }
             output = newOutput;
-            _bts7960.setOutput(output.get());
+            _bts7960.setOutput(output());
             timeout(CONTROL_INTERVAL_MS);
         }
         if ( _pulseTimer.timeout()) {
@@ -53,20 +53,20 @@ void MotorSpeed::loop()
             _pulseTimer.start();
         }
         if ( _reportTimer.timeout()) {
-            KI.pub();
-            KD.pub();
-            KP.pub();
-            integral.pub();
-            derivative.pub();
-            proportional.pub();
-            output.pub();
-            rpmTarget.pub();
+            KI.request();
+            KD.request();
+            KP.request();
+            integral.request();
+            derivative.request();
+            proportional.request();
+            output.request();
+            rpmTarget.request();
             current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
-            INFO("rpm %d/%d = %f => pwm=%f = %f + %f + %f ",  rpmMeasured.get(),rpmTarget.get(),error.get(),
-                 output.get(),
-                 KP.get() * error.get(),
-                 KI.get() * integral.get(),
-                 KD.get() * derivative.get());
+            INFO("rpm %d/%d = %f => pwm=%f = %f + %f + %f ",  rpmMeasured(),rpmTarget(),error(),
+                 output(),
+                 KP() * error(),
+                 KI() * integral(),
+                 KD() * derivative());
             _reportTimer.start();
         }
 
@@ -90,12 +90,12 @@ void MotorSpeed::pulse()
 
 float MotorSpeed::PID(float err, float interval)
 {
-    integral = integral.get() + (err * interval);
+    integral = integral() + (err * interval);
     derivative = (err - _errorPrior) / interval;
-    float integralPart = KI.get() * integral.get();
-    if ( integralPart > 30 ) integral =30.0 / KI.get();
-    if ( integralPart < -30.0 ) integral =-30.0 / KI.get();
-    float output = KP.get() * err + integralPart + KD.get() * derivative.get() + bias;
+    float integralPart = KI() * integral();
+    if ( integralPart > 30 ) integral =30.0 / KI();
+    if ( integralPart < -30.0 ) integral =-30.0 / KI();
+    float output = KP() * err + integralPart + KD() * derivative() + bias;
     _errorPrior = err;
     return output;
 }

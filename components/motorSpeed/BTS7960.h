@@ -46,12 +46,12 @@ public:
             uint32_t pinRightPwm);
     ~BTS7960();
     Erc initialize();
-    void loop();
-    void calcTarget(float v);
-    int32_t getAngle();
-    int32_t getAngleCurrent();
-    void setAngleTarget(int32_t target);
-    int32_t getAngleTarget();
+//    void loop();
+//    void calcTarget(float v);
+//    int32_t getAngle();
+////    int32_t getAngleCurrent();
+//   void setAngleTarget(int32_t target);
+//    int32_t getAngleTarget();
     void motorStop();
     void left(float);
     void right(float);

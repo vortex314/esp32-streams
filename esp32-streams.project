@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Project Name="esp32-streams" Version="10.0.0" InternalType="Console">
-
   <Plugins>
     <Plugin Name="qmake">
       <![CDATA[00010001N0005Debug000000000000]]>
@@ -10,9 +9,9 @@
   <VirtualDirectory Name="components">
     <VirtualDirectory Name="servo">
       <File Name="components/servo/component.mk"/>
-  <File Name="components/servo/MotorServo.h"/>
-  <File Name="components/servo/MotorServo.cpp"/>
-  </VirtualDirectory>
+      <File Name="components/servo/MotorServo.h"/>
+      <File Name="components/servo/MotorServo.cpp"/>
+    </VirtualDirectory>
     <VirtualDirectory Name="motorSpeed">
       <File Name="components/motorSpeed/MotorSpeed.h"/>
       <File Name="components/motorSpeed/MotorSpeed.cpp"/>
@@ -23,12 +22,7 @@
       <File Name="components/motorSpeed/component.mk"/>
     </VirtualDirectory>
     <VirtualDirectory Name="remote">
-      <File Name="components/remote/Controller.cpp"/>
-      <File Name="components/remote/Controller.h"/>
-      <File Name="components/remote/Led.h"/>
-      <File Name="components/remote/Led.cpp"/>
-      <File Name="components/remote/Pot.cpp"/>
-      <File Name="components/remote/Pot.h"/>
+      <File Name="components/remote/HwStream.h"/>
       <File Name="components/remote/MedianFilter.h"/>
     </VirtualDirectory>
     <VirtualDirectory Name="ultrasonic">

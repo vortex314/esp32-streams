@@ -115,7 +115,7 @@ RotaryEncoder::isrHandler(void* pv) // ATTENTION no float calculations in ISR
     MCPWM[ms->_mcpwm_num]->int_clr.val = mcpwm_intr_status;
 }
 
-int32_t RotaryEncoder::rpm()
+int32_t RotaryEncoder::calcRpm()
 {
     static int oldRpm=0;
     if ( _captureTime < ( Sys::millis()-100))  return medianFilter(0);
@@ -126,10 +126,6 @@ int32_t RotaryEncoder::rpm()
     return medianFilter(rpm);
 }
 
-int32_t RotaryEncoder::direction()
-{
-    return _direction;
-}
 
 int32_t RotaryEncoder::deltaToRpm(uint32_t delta, int32_t direction)
 {

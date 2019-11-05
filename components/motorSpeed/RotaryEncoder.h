@@ -39,6 +39,8 @@ class RotaryEncoder : public Coroutine,public Source<int32_t>
 
 
 public:
+	ValueSource<int32_t> rpm=0;
+	ValueSource<int32_t> direction=0;
     RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB);
     ~RotaryEncoder();
     void setup();
@@ -48,8 +50,7 @@ public:
     static void isrHandler(void*);
     int32_t deltaToRpm(uint32_t delta, int32_t direction);
 
-    int32_t rpm();
-    int32_t direction();
+	int32_t calcRpm();
     void setPwmUnit(uint32_t);
     int32_t filter(int32_t inp);
     int32_t medianFilter(int32_t inp);

@@ -62,12 +62,12 @@ void MotorServo::loop()
     while(true) {
         PT_YIELD_UNTIL(timeout() || _pulseTimer.timeout() || _reportTimer.timeout());
         if ( timeout() ) {
-            if ( angleTarget.get()< ANGLE_MIN) angleTarget=ANGLE_MIN;
-            if ( angleTarget.get()> ANGLE_MAX) angleTarget=ANGLE_MAX;
+            if ( angleTarget()< ANGLE_MIN) angleTarget=ANGLE_MIN;
+            if ( angleTarget()> ANGLE_MAX) angleTarget=ANGLE_MAX;
             if ( measureAngle()) {
-                _error = angleTarget.get() - angleMeasured.get();
+                _error = angleTarget() - angleMeasured();
                 output = PID(_error, CONTROL_INTERVAL_MS);
-                _bts7960.setOutput(output.get());
+                _bts7960.setOutput(output());
             }
             timeout(CONTROL_INTERVAL_MS);
         }
@@ -80,22 +80,22 @@ void MotorServo::loop()
             _pulseTimer.start();
         }
         if ( _reportTimer.timeout()) {
-            KI.pub();
-            KD.pub();
-            KP.pub();
-            integral.pub();
-            derivative.pub();
-            proportional.pub();
-            output.pub();
-            angleTarget.pub();
-            angleMeasured.pub();
+            KI.request();
+            KD.request();
+            KP.request();
+            integral.request();
+            derivative.request();
+            proportional.request();
+            output.request();
+            angleTarget.request();
+            angleMeasured.request();
             current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
-            current.pub();
-            INFO("angle %d/%d = %f => pwm=%f = %f + %f + %f ",  angleMeasured.get(),angleTarget.get(),error.get(),
-                 output.get(),
-                 KP.get() * error.get(),
-                 KI.get() * integral.get(),
-                 KD.get() * derivative.get());
+            current.request();
+            INFO("angle %d/%d = %f => pwm=%f = %f + %f + %f ",  angleMeasured(),angleTarget(),error(),
+                 output(),
+                 KP() * error(),
+                 KI() * integral(),
+                 KD() * derivative());
             _reportTimer.start();
         }
 
@@ -125,12 +125,12 @@ bool MotorServo::measureAngle()
 
 float MotorServo::PID(float err, float interval)
 {
-    integral = integral.get() + (err * interval);
+    integral = integral() + (err * interval);
     derivative = (err - _errorPrior) / interval;
-    float integralPart = KI.get() * integral.get();
-    if ( integralPart > 20 ) integral =20.0 / KI.get();
-    if ( integralPart < -20.0 ) integral =-20.0 / KI.get();
-    float output = KP.get() * err + integralPart + KD.get() * derivative.get() + _bias;
+    float integralPart = KI() * integral();
+    if ( integralPart > 20 ) integral =20.0 / KI();
+    if ( integralPart < -20.0 ) integral =-20.0 / KI();
+    float output = KP() * err + integralPart + KD() * derivative() + _bias;
     _errorPrior = err;
     return output;
 }

@@ -9,10 +9,13 @@
 
 //______________________________________________________________________________
 //
+template <typename T>  class AbstractSource;
+
 template <class T> class AbstractSink
 {
 public:
-    virtual void recv(T event) = 0;
+    virtual void onNext(T event) = 0;
+	virtual void onSubscribe(AbstractSource<T>*) {};
 };
 //______________________________________________________________________________
 //
@@ -20,6 +23,45 @@ template <typename T> class AbstractSource
 {
 public:
     virtual void emit(T event) = 0;
+	virtual void subscribe(AbstractSink<T>* sink)=0;
+	virtual void request()=0;
+};
+//_______________________________________________________________________________
+//
+/*class SinkPool {
+	std::vector<AbstractSink*> _sinks;
+public:
+SinkPool(){};
+	void add(AbstractSink* sink)
+		{
+			_sinks.push_back(sink);
+		}
+		void run() {
+			for(AbstractSink* as:_sinks){
+				
+			}
+		}
+};*/
+
+
+
+//______________________________________________________________________________
+//
+template <class T> class Sink : public AbstractSink<T>
+{
+    std::vector<AbstractSource<T> *> _sources;
+
+public:
+    Sink() {};
+    void onSubscribe(AbstractSource<T> *source)
+    {
+        _sources.push_back(source);
+    }
+	void request(){
+		 for (AbstractSource<T> *source : _sources) {
+            source->request();
+        }
+	}
 };
 //______________________________________________________________________________
 //
@@ -34,7 +76,7 @@ public:
     {
         _handler = handler;
     };
-    void recv(T event)
+    void onNext(T event)
     {
         _handler(event);
     };
@@ -47,24 +89,35 @@ template <class T> class Source : public AbstractSource<T>
 
 public:
     Source() {};
-    void addSink(AbstractSink<T> *_sink)
+    void subscribe(AbstractSink<T> *_sink)
     {
         _sinks.push_back(_sink);
     }
-    void operator>>(std::function<void(T)> handler)
+    Source<T>& operator>>(std::function<void(T)> handler)
     {
-        addSink(new HandlerSink<T>(handler));
+		HandlerSink<T> hs = new HandlerSink<T>(handler);
+        subscribe(hs);
+		return *this;
     };
-    void operator>>(AbstractSink<T> &sink)
+    Source<T>& operator>>(AbstractSink<T> &sink)
     {
-        addSink(&sink);
+        subscribe(&sink);
+		return  *this;
+    }
+	Source<T>& operator>>(AbstractSink<T>* sink)
+    {
+        subscribe(sink);
+		return  *this;
     }
     void emit(T event)
     {
         for (AbstractSink<T> *sink : _sinks) {
-            sink->recv(event);
+            sink->onNext(event);
         }
     };
+	void request(){
+		
+	}
 };
 //______________________________________________________________________________
 //
@@ -75,16 +128,31 @@ class Flow : public AbstractSink<IN>, public Source<OUT> {};
 template <class IN, class OUT>
 Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> &flow)
 {
-    source.addSink(&flow);
+    source.subscribe(&flow);
     return flow;
 };
 
 template <class IN, class OUT>
 Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> *flow)
 {
-    source.addSink(flow);
+    source.subscribe(flow);
     return *flow;
 };
+
+template <class IN, class OUT>
+AbstractSink<IN> & operator>>(Flow<IN,OUT> &flow, AbstractSink< OUT> & sink)
+{
+    flow.subscribe(sink);
+    return flow;
+};
+
+template <class IN, class OUT>
+AbstractSink<IN> & operator>>(Flow<IN,OUT> &flow, AbstractSink< OUT> * sink)
+{
+    flow.subscribe(sink);
+    return flow;
+};
+
 //______________________________________________________________________________
 //
 #include <FreeRTOS.h>
@@ -101,7 +169,7 @@ public:
         xSemaphore = xSemaphoreCreateBinary();
         xSemaphoreGive( xSemaphore );
     }
-    void recv(T event)
+    void onNext(T event)
     {
         if( xSemaphoreTake( xSemaphore, ( TickType_t ) 10 ) == pdTRUE ) {
             if (_buffer.size() >= _queueDepth) {
@@ -138,14 +206,13 @@ public:
     {
         _value=value;
     }
-    void recv(T value)
+    void onNext(T value)
     {
         _value=value;
     }
-    inline T get()
-    {
-        return _value;
-    }
+	T operator()(){
+		return _value;
+	}
 };
 //______________________________________________________________________________
 //
@@ -166,23 +233,29 @@ template <class T>
 class ValueSource : public Source<T>
 {
     T _value;
+	bool _emitOnChange=false;
+	bool _hasNewValue;
 public:
     ValueSource(T x)
     {
         _value=x;
+		_hasNewValue=true;
     };
-    void pub()
+    void request()
     {
+		if ( _hasNewValue ){
         this->emit(_value);
+		_hasNewValue=false;
+		}
     }
     inline void operator=(T value)
     {
         _value=value;
+		_hasNewValue=true;
     };
-    T get()
-    {
-        return _value;
-    }
+	T operator()(){
+		return _value;
+	}
 };
 
 //______________________________________________________________________________
@@ -196,7 +269,7 @@ public:
     {
         _value=x;
     };
-    inline T get()
+    inline T operator()()
     {
         return _value;
     }
@@ -204,11 +277,11 @@ public:
     {
         _value=value;
     }
-    inline void recv(T value)
+    inline void onNext(T value)
     {
         _value=value;
     }
-    inline   void pub()
+    inline  void request()
     {
         this->emit(_value);
     }
@@ -236,7 +309,7 @@ public:
     {
         emit(value);
     }
-    void recv(T value)
+    void onNext(T value)
     {
         _value=value;
         this->emit(value);
@@ -251,6 +324,51 @@ void operator|(Flow<T,T>& x,Flow<T,T>& y)
     x >> y;
     y >> x;
 }
+
+template <class T> 
+class Wait : public Flow<T,T> {
+	uint64_t _last;
+	uint32_t _delay;
+public :
+	Wait(uint32_t delay) : _delay(delay){}
+	void onNext(T value){
+		uint32_t delta =  Sys::millis()-_last;
+		if ( delta > _delay ){
+			this->emit(value);
+		}
+		_last = Sys::millis();
+	}
+
+};
+
+struct TimerMsg {
+	const int id;
+};
+
+class TimerSource : public Source<TimerMsg>
+{
+    uint32_t _interval;
+    bool _repeat;
+	uint64_t _expireTime;
+	int _id;
+public:
+    TimerSource(int id,uint32_t interval,bool repeat) 
+    {
+		_id=id;
+        _interval=interval;
+        _repeat = repeat;
+		_expireTime=Sys::millis()+_interval;
+    }
+    void request()
+    {
+		if ( Sys::millis() > _expireTime){
+			_expireTime=Sys::millis()+_interval;
+			emit({_id});
+		}
+    }
+
+};
+
 
 
 #endif

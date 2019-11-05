@@ -11,11 +11,10 @@
 class UltraSonic : public Coroutine {
 		Connector* _connector;
 		HCSR04* _hcsr;
-		int32_t _distance;
-		int32_t _delay;
 
-	public:
-		ReferenceSource<int32_t> distance;
+public:
+	ValueSource<int32_t> distance=0;
+	ValueSource<int32_t> delay=0;
 		UltraSonic(Connector*);
 		virtual ~UltraSonic();
 		void setup();
