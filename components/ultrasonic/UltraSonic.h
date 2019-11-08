@@ -13,8 +13,8 @@ class UltraSonic : public Coroutine {
 		HCSR04* _hcsr;
 
 public:
-	ValueSource<int32_t> distance=0;
-	ValueSource<int32_t> delay=0;
+	ValueFlow<int32_t> distance=0;
+	ValueFlow<int32_t> delay=0;
 		UltraSonic(Connector*);
 		virtual ~UltraSonic();
 		void setup();

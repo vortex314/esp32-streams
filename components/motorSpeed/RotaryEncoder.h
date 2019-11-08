@@ -39,8 +39,8 @@ class RotaryEncoder : public Coroutine,public Source<int32_t>
 
 
 public:
-	ValueSource<int32_t> rpm=0;
-	ValueSource<int32_t> direction=0;
+	ValueFlow<int32_t> rpm=0;
+	ValueFlow<int32_t> direction=0;
     RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB);
     ~RotaryEncoder();
     void setup();

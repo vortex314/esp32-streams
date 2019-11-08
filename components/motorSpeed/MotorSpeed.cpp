@@ -60,7 +60,7 @@ void MotorSpeed::loop()
             derivative.request();
             proportional.request();
             output.request();
-            rpmTarget.request();
+//            rpmTarget.request();
             current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
             INFO("rpm %d/%d = %f => pwm=%f = %f + %f + %f ",  rpmMeasured(),rpmTarget(),error(),
                  output(),

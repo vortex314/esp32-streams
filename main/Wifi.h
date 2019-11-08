@@ -16,18 +16,15 @@
 
 class Wifi : public Coroutine
 {
-    std::string _ssid;
     std::string _pswd;
     std::string _prefix;
-    std::string _ipAddress;
-    int _rssi;
     uint8_t _mac[6];
 
 public:
-    Source<bool> connected;
-    int rssi();
-    std::string ipAddress();
-    std::string ssid();
+    ValueFlow<bool> connected;
+    ValueFlow<int> rssi;
+	ValueFlow<std::string> ipAddress;
+	ValueFlow<std::string> ssid;
 
     Wifi( );
     ~Wifi();
@@ -40,7 +37,6 @@ public:
     void connectToAP(const char* AP);
     void startScan();
     void wifiInit();
-    const char* getSSID();
 };
 
 #endif // WIFI_H

@@ -94,9 +94,7 @@ public:
     }
 };
 
-class Mqtt : public Coroutine,
-    public BufferedSink<MqttMessage>,
-    public Source<MqttMessage>
+class Mqtt : public Coroutine,public AsyncFlow<MqttMessage>,public Sink<TimerMsg> 
 {
 
     bool _connected;
@@ -110,7 +108,7 @@ class Mqtt : public Coroutine,
     std::string _hostPrefix;
 
 public:
-    HandlerSink<bool> wifiConnected;
+    LambdaSink<bool> wifiConnected;
     Source<bool> connected;
     Mqtt();
     ~Mqtt();
@@ -125,9 +123,11 @@ public:
     bool handleMqttMessage(const char *message);
     static int mqtt_event_handler( esp_mqtt_event_t* event);
 	
+	void onNext(TimerMsg);
+	void onNext(MqttMessage);
 	template <class T> 
-	AbstractSink<T>& toTopic(const char* name) {
-		 return *(new ToMqtt<T>(name) ) >> this;
+	Sink<T>& toTopic(const char* name) {
+		 return *(new ToMqtt<T>(name) ) >> *this;
 	}
 	template <class T>
 	Source<T>& fromTopic(const char* name){

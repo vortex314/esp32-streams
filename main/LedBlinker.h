@@ -5,16 +5,19 @@
 #include <Streams.h>
 #include "driver/gpio.h"
 
-
-class LedBlinker : public Coroutine,public HandlerSink<bool>
+class LedBlinker : public Sink<TimerMsg>
 {
-    uint32_t _pin, _delay;
+    uint32_t _pin;
+    bool _on;
 
-public:
+  public:
+    LambdaSink<bool> blinkSlow;
+    TimerSource blinkTimer;
+
     LedBlinker(uint32_t pin, uint32_t delay);
     void setup();
-    void loop();
     void delay(uint32_t d);
+    void onNext(TimerMsg);
 };
 
 #endif // LEDBLINKER_H

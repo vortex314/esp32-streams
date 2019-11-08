@@ -21,11 +21,10 @@
 
 
 
-PropertyFlow<double> rssi("rssi");
 
 Wifi::Wifi() : Coroutine("wifi")
 {
-    _rssi = 0;
+    rssi = 0;
     _prefix = S(WIFI_SSID) ;
     _pswd = S(WIFI_PASS);
 }
@@ -84,7 +83,7 @@ esp_err_t Wifi::wifi_event_handler(void* ctx, system_event_t* event)
         system_event_sta_got_ip_t* got_ip = &event->event_info.got_ip;
         char my_ip_address[20];
         ip4addr_ntoa_r(&got_ip->ip_info.ip, my_ip_address, 20);
-        wifi._ipAddress = my_ip_address;
+        wifi.ipAddress = my_ip_address;
 
         wifi.connected.emit(true);
         break;
@@ -112,7 +111,7 @@ void Wifi::connectToAP(const char* ssid)
 {
     INFO(" connecting to SSID : %s", ssid);
     wifi_config_t wifi_config;
-    _ssid = ssid;
+    this->ssid = ssid;
     memset(&wifi_config, 0, sizeof(wifi_config)); // needed !!
     strncpy((char*) wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid)
             - 1);
@@ -136,13 +135,13 @@ void Wifi::scanDoneHandler()
     wifi_ap_record_t apRecords[sta_number];
     esp_wifi_scan_get_ap_records(&sta_number, apRecords);
     int strongestAP = -1;
-    _rssi = -200;
+    rssi = -200;
     for (uint32_t i = 0; i < sta_number; i++) {
         INFO(" %s : %d ", apRecords[i].ssid, apRecords[i].rssi);
         std::basic_string<char> ssid = (const char*) apRecords[i].ssid;
-        if ((apRecords[i].rssi > _rssi) && (ssid.find(_prefix) == 0)) {
+        if ((apRecords[i].rssi > rssi()) && (ssid.find(_prefix) == 0)) {
             strongestAP = i;
-            _rssi = apRecords[i].rssi;
+            rssi = apRecords[i].rssi;
         }
     }
     if (strongestAP == -1) {
@@ -176,20 +175,4 @@ void Wifi::wifiInit()
     CHECK(esp_wifi_set_promiscuous(false));
     CHECK(esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B));
     CHECK(esp_wifi_start());
-}
-
-
-std::string Wifi::ipAddress()
-{
-    return _ipAddress;
-}
-
-int Wifi::rssi()
-{
-    return _rssi;
-}
-
-std::string Wifi::ssid()
-{
-    return _ssid;
 }

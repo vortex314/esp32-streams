@@ -42,10 +42,10 @@ class MotorServo : public Coroutine
 public:
     ValueFlow<int> angleTarget=0;
     ValueFlow<int> angleMeasured=0;
-    ValueSource<float> KP=3,KI=0.005,KD=0.1,output=0.0,error=0.0,rpmFiltered=0.0;
-    ValueSource<float> proportional=0.0,integral=0.0,derivative=0.0;
-    ValueSource<float> current=0.0;
-    ValueSink<bool> keepGoing=true;
+    ValueFlow<float> KP=3,KI=0.005,KD=0.1,output=0.0,error=0.0,rpmFiltered=0.0;
+    ValueFlow<float> proportional=0.0,integral=0.0,derivative=0.0;
+    ValueFlow<float> current=0.0;
+    ValueFlow<bool> keepGoing=true;
     MotorServo(Connector* connector);
     MotorServo(uint32_t pinPot, uint32_t pinIS,
                uint32_t pinLeftEnable, uint32_t pinRightEnable,

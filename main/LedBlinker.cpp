@@ -2,10 +2,10 @@
 
 #define PIN_LED 2
 
-LedBlinker::LedBlinker(uint32_t pin, uint32_t delay) : Coroutine("LedBlinker")
+LedBlinker::LedBlinker(uint32_t pin, uint32_t delay) : blinkTimer(1,100,true)
 {
     _pin = pin;
-    _delay = delay;
+    blinkTimer.interval(delay);
 }
 void LedBlinker::setup()
 {
@@ -16,24 +16,18 @@ void LedBlinker::setup()
     io_conf.pull_down_en = (gpio_pulldown_t)1;
     io_conf.pull_up_en = (gpio_pullup_t)1;
     gpio_config(&io_conf);
-    handler([=](bool flag) {
-        _delay = flag ? 500 : 100;
+	blinkTimer >> *this;
+    blinkSlow.handler([=](bool flag) {
+		if ( flag ) blinkTimer.interval(500);
+		else blinkTimer.interval(100);
     });
 }
-void LedBlinker::loop()
+void LedBlinker::onNext(TimerMsg m)
 {
-    PT_BEGIN();
-    while (true) {
-        timeout(_delay);
-        gpio_set_level((gpio_num_t)_pin, 1);
-        PT_YIELD_UNTIL(timeout());
-        timeout(_delay);
-        gpio_set_level((gpio_num_t)_pin, 0);
-        PT_YIELD_UNTIL(timeout());
-    }
-    PT_END();
+	gpio_set_level((gpio_num_t)_pin, _on ? 1 : 0 );
+	_on = ! _on;
 }
 void LedBlinker::delay(uint32_t d)
 {
-    _delay = d;
+    blinkTimer.interval(d);
 }

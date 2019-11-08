@@ -1,374 +1,399 @@
-
-#include <deque>
-#include <functional>
-#include <stdint.h>
-#include <vector>
 #ifndef STREAMS_H
 #define STREAMS_H
+#include <vector>
+#include <functional>
+#include <deque>
+#include <string>
 #include <Log.h>
+#include <ArduinoJson.h>
+#include <atomic>
 
-//______________________________________________________________________________
-//
-template <typename T>  class AbstractSource;
-
-template <class T> class AbstractSink
+template <class T>
+class Observer
 {
-public:
-    virtual void onNext(T event) = 0;
-	virtual void onSubscribe(AbstractSource<T>*) {};
+  public:
+    virtual void onNext(T) { WARN("I am abstract. Don't call me."); };
 };
-//______________________________________________________________________________
-//
-template <typename T> class AbstractSource
+// DD : used vector of void pointers and not vector of pointers to template class, to avoid explosion of vector
+// implementations
+template <class T>
+class Observable
 {
-public:
-    virtual void emit(T event) = 0;
-	virtual void subscribe(AbstractSink<T>* sink)=0;
-	virtual void request()=0;
-};
-//_______________________________________________________________________________
-//
-/*class SinkPool {
-	std::vector<AbstractSink*> _sinks;
-public:
-SinkPool(){};
-	void add(AbstractSink* sink)
-		{
-			_sinks.push_back(sink);
-		}
-		void run() {
-			for(AbstractSink* as:_sinks){
-				
-			}
-		}
-};*/
+    std::vector<void*> _observers;
 
-
-
-//______________________________________________________________________________
-//
-template <class T> class Sink : public AbstractSink<T>
-{
-    std::vector<AbstractSource<T> *> _sources;
-
-public:
-    Sink() {};
-    void onSubscribe(AbstractSource<T> *source)
+  public:
+    void subscribe(Observer<T>& observer) { _observers.push_back((void*)&observer); }
+    uint32_t size() { return _observers.size(); }
+    Observer<T>* operator[](uint32_t idx) { return static_cast<Observer<T>*>(_observers[idx]); }
+    void emit(T t)
     {
-        _sources.push_back(source);
-    }
-	void request(){
-		 for (AbstractSource<T> *source : _sources) {
-            source->request();
-        }
+	for(void* pv : _observers) {
+	    Observer<T>* pObserver = static_cast<Observer<T>*>(pv);
+	    pObserver->onNext(t);
 	}
+    }
+};
+
+template <class OUT>
+class Source : public Observable<OUT>
+{
+  public:
+    virtual void request() { WARN(" I am abstract. Don't call me."); };
+};
+
+template <class IN>
+class Sink : public Observer<IN>
+{
+};
+
+template <class IN, class OUT>
+class Flow : public Sink<IN>, public Source<OUT>
+{
+  public:
+    Flow(){};
+    Flow<IN, OUT>(Sink<IN>& a, Source<OUT>& b)
+        : Sink<IN>(a)
+        , Source<OUT>(b){};
+};
+
+template <class IN, class INTERM, class OUT>
+Flow<IN, OUT>& operator>>(Flow<IN, INTERM>& flow1, Flow<INTERM, OUT>& flow2)
+{
+    flow1.subscribe(flow2);
+    return *new Flow<IN, OUT>(flow1, flow2);
+};
+
+template <class IN, class OUT>
+Sink<IN>& operator>>(Flow<IN, OUT>& flow, Sink<OUT>& sink)
+{
+    flow.subscribe(sink);
+    return flow;
+};
+
+template <class IN, class OUT>
+Source<OUT>& operator>>(Source<IN>& source, Flow<IN, OUT>& flow)
+{
+    return flow;
+};
+
+template <class OUT>
+void operator>>(Source<OUT>& source, Sink<OUT>& sink)
+{
+    source.subscribe(sink);
+};
+
+//______________________________________________________________________________
+//
+//______________________________________________________________________________
+//
+//______________________________________________________________________________
+//
+template <class T>
+class ValueFlow : public Flow<T, T>
+{
+    T _value;
+
+  public:
+    ValueFlow() {  }
+    ValueFlow(T x)
+    {
+	_value = x;
+    };
+    void request()
+    {
+	    this->emit(_value);
+	}
+	void onNext(T value) { _value = value; }
+    inline void operator=(T value)
+    {
+	_value = value;
+    };
+    T operator()() { return _value; }
 };
 //______________________________________________________________________________
 //
-template <class T> class HandlerSink : public AbstractSink<T>
+template <class T>
+class LambdaSink : public Sink<T>
 {
     std::function<void(T)> _handler;
 
-public:
-    HandlerSink() {};
-    HandlerSink(std::function<void(T)> handler) : _handler(handler) {};
-    void handler(std::function<void(T)> handler)
-    {
-        _handler = handler;
-    };
-    void onNext(T event)
-    {
-        _handler(event);
-    };
+  public:
+    LambdaSink(){};
+    LambdaSink(std::function<void(T)> handler)
+        : _handler(handler){};
+    void handler(std::function<void(T)> handler) { _handler = handler; };
+    void onNext(T event) { _handler(event); };
 };
-//______________________________________________________________________________
-//
-template <class T> class Source : public AbstractSource<T>
-{
-    std::vector<AbstractSink<T> *> _sinks;
 
-public:
-    Source() {};
-    void subscribe(AbstractSink<T> *_sink)
+template <class IN, class OUT>
+class LambdaFlow : public Flow<IN, OUT>
+{
+    std::function<OUT(IN)> _handler;
+
+  public:
+    LambdaFlow(){};
+    LambdaFlow(std::function<OUT(IN)> handler)
+        : _handler(handler){};
+    void handler(std::function<OUT(IN)> handler) { _handler = handler; };
+    void onNext(IN event) { _handler(event); };
+};
+
+template <class T>
+class Filter : public Flow<T, T>
+{
+    T _value;
+
+  public:
+    Filter(T value) { _value = value; }
+    void onNext(T in)
     {
-        _sinks.push_back(_sink);
+	if(in == _value) this->emit(in);
     }
-    Source<T>& operator>>(std::function<void(T)> handler)
+};
+
+#include <MedianFilter.h>
+
+template <class T, int x>
+class Median : public Flow<T, T>
+{
+    MedianFilter<T, x> _mf;
+
+  public:
+    Median(){};
+    void onNext(T value) { _mf.addSample(value); };
+    void request()
     {
-		HandlerSink<T> hs = new HandlerSink<T>(handler);
-        subscribe(hs);
-		return *this;
-    };
-    Source<T>& operator>>(AbstractSink<T> &sink)
-    {
-        subscribe(&sink);
-		return  *this;
+	if(_mf.isReady()) this->emit(_mf.getMedian());
     }
-	Source<T>& operator>>(AbstractSink<T>* sink)
+};
+
+template <class T>
+class Router : public Flow<T, T>
+{
+    uint32_t _idx;
+
+  public:
+    void onNext(T t)
     {
-        subscribe(sink);
-		return  *this;
+	_idx++;
+	if(_idx > this->size()) _idx = 0;
+	(*this)[_idx]->onNext(t);
     }
-    void emit(T event)
-    {
-        for (AbstractSink<T> *sink : _sinks) {
-            sink->onNext(event);
-        }
-    };
-	void request(){
-		
-	}
 };
-//______________________________________________________________________________
-//
-template <class IN, class OUT>
-class Flow : public AbstractSink<IN>, public Source<OUT> {};
-//______________________________________________________________________________
-//
-template <class IN, class OUT>
-Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> &flow)
-{
-    source.subscribe(&flow);
-    return flow;
-};
-
-template <class IN, class OUT>
-Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> *flow)
-{
-    source.subscribe(flow);
-    return *flow;
-};
-
-template <class IN, class OUT>
-AbstractSink<IN> & operator>>(Flow<IN,OUT> &flow, AbstractSink< OUT> & sink)
-{
-    flow.subscribe(sink);
-    return flow;
-};
-
-template <class IN, class OUT>
-AbstractSink<IN> & operator>>(Flow<IN,OUT> &flow, AbstractSink< OUT> * sink)
-{
-    flow.subscribe(sink);
-    return flow;
-};
-
 //______________________________________________________________________________
 //
 #include <FreeRTOS.h>
 #include <freertos/semphr.h>
-template <class T> class BufferedSink : public AbstractSink<T>
+template <class T>
+class AsyncFlow : public Flow<T, T>
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
     SemaphoreHandle_t xSemaphore = NULL;
 
-public:
-    BufferedSink(uint32_t size) : _queueDepth(size)
+  public:
+    AsyncFlow(uint32_t size)
+        : _queueDepth(size)
     {
-        xSemaphore = xSemaphoreCreateBinary();
-        xSemaphoreGive( xSemaphore );
+	xSemaphore = xSemaphoreCreateBinary();
+	xSemaphoreGive(xSemaphore);
     }
     void onNext(T event)
     {
-        if( xSemaphoreTake( xSemaphore, ( TickType_t ) 10 ) == pdTRUE ) {
-            if (_buffer.size() >= _queueDepth) {
-                _buffer.pop_front();
-                WARN(" buffer overflow in BufferedSink ");
-            }
-            _buffer.push_back(event);
-            xSemaphoreGive( xSemaphore );
-        }
-    }
-
-    void getNext(T& t)
-    {
-        if( xSemaphoreTake( xSemaphore, ( TickType_t ) 10 ) == pdTRUE ) {
-            t = _buffer.front();
-            _buffer.pop_front();
-            xSemaphoreGive( xSemaphore );
-        }
-    }
-    bool hasNext()
-    {
-        return !_buffer.empty();
-    }
-};
-//______________________________________________________________________________
-//
-template <class T>
-class ValueSink : public AbstractSink<T>
-{
-    T _value;
-
-public:
-    ValueSink(T value)
-    {
-        _value=value;
-    }
-    void onNext(T value)
-    {
-        _value=value;
-    }
-	T operator()(){
-		return _value;
+	if(xSemaphoreTake(xSemaphore, (TickType_t)10) == pdTRUE) {
+	    if(_buffer.size() >= _queueDepth) {
+		_buffer.pop_front();
+		WARN(" buffer overflow in BufferedSink ");
+	    }
+	    _buffer.push_back(event);
+	    xSemaphoreGive(xSemaphore);
 	}
-};
-//______________________________________________________________________________
-//
-template <class T>
-class ReferenceSource : public Source<T>
-{
-    T* _ref;
-public:
-    ReferenceSource(T* ref):_ref(ref) {};
-    void pub()
-    {
-        this->emit(*_ref);
     }
-};
-//______________________________________________________________________________
-//
-template <class T>
-class ValueSource : public Source<T>
-{
-    T _value;
-	bool _emitOnChange=false;
-	bool _hasNewValue;
-public:
-    ValueSource(T x)
-    {
-        _value=x;
-		_hasNewValue=true;
-    };
+
     void request()
     {
-		if ( _hasNewValue ){
-        this->emit(_value);
-		_hasNewValue=false;
-		}
-    }
-    inline void operator=(T value)
-    {
-        _value=value;
-		_hasNewValue=true;
-    };
-	T operator()(){
-		return _value;
+	if(xSemaphoreTake(xSemaphore, (TickType_t)10) == pdTRUE) {
+	    T t = _buffer.front();
+	    _buffer.pop_front();
+	    xSemaphoreGive(xSemaphore);
+	    this->emit(t);
 	}
+    }
 };
 
-//______________________________________________________________________________
-//
 template <class T>
-class ValueFlow : public Source<T>,public AbstractSink<T>
+class AsyncValueFlow : Flow<T, T>
 {
     T _value;
-public:
-    ValueFlow(T x)
-    {
-        _value=x;
-    };
-    inline T operator()()
-    {
-        return _value;
-    }
-    inline void operator=(T value)
-    {
-        _value=value;
-    }
-    inline void onNext(T value)
-    {
-        _value=value;
-    }
-    inline  void request()
-    {
-        this->emit(_value);
-    }
-};
-//______________________________________________________________________________
-//
-template <class T>
-class PropertyFlow : public Flow<T,T>
-{
-    T _value;
-    std::string _name;
 
-public:
-    PropertyFlow(const char* name) : _name(name) {}
-    void operator=(T value)
-    {
-        _value = value;
-        emit(value);
-    }
-    T value()
-    {
-        return _value;
-    }
-    void publish()
-    {
-        emit(value);
-    }
-    void onNext(T value)
-    {
-        _value=value;
-        this->emit(value);
-    }
+  public:
+    void onNext(T value) { _value = value; }
+    void request() { this->emit(_value); }
 };
 
-
-
-template <class T>
-void operator|(Flow<T,T>& x,Flow<T,T>& y)
+class AtomicSource : public Source<uint32_t>
 {
-    x >> y;
-    y >> x;
-}
+    std::atomic<uint32_t> _atom;
 
-template <class T> 
-class Wait : public Flow<T,T> {
-	uint64_t _last;
-	uint32_t _delay;
-public :
-	Wait(uint32_t delay) : _delay(delay){}
-	void onNext(T value){
-		uint32_t delta =  Sys::millis()-_last;
-		if ( delta > _delay ){
-			this->emit(value);
-		}
-		_last = Sys::millis();
+  public:
+    void inc() { _atom++; }
+    void request()
+    {
+	if(_atom > 0) {
+	    emit(_atom);
+	    _atom--;
 	}
-
+    }
 };
 
-struct TimerMsg {
-	const int id;
+class TimerMsg
+{
+  public:
+    uint32_t id;
 };
 
 class TimerSource : public Source<TimerMsg>
 {
     uint32_t _interval;
     bool _repeat;
-	uint64_t _expireTime;
-	int _id;
-public:
-    TimerSource(int id,uint32_t interval,bool repeat) 
+    uint64_t _expireTime;
+    uint32_t _id;
+
+  public:
+    TimerSource(int id, uint32_t interval, bool repeat)
     {
-		_id=id;
-        _interval=interval;
-        _repeat = repeat;
-		_expireTime=Sys::millis()+_interval;
+	_id = id;
+	_interval = interval;
+	_repeat = repeat;
+	_expireTime = Sys::millis() + _interval;
     }
+    void interval(uint32_t i) { _interval = i; }
     void request()
     {
-		if ( Sys::millis() > _expireTime){
-			_expireTime=Sys::millis()+_interval;
-			emit({_id});
-		}
+	if(Sys::millis() > _expireTime) {
+	    _expireTime = Sys::millis() + _interval;
+	    this->emit({_id});
+	}
     }
-
 };
 
+class IntToDouble : public Flow<uint32_t, double>
+{
+  public:
+    IntToDouble(){};
+    void onNext(uint32_t ui)
+    {
+	double d = ui;
+	emit(d);
+    }
+};
 
-
+class DoubleToInt : public Flow<double, uint32_t>
+{
+  public:
+    DoubleToInt(){};
+    void onNext(double ui)
+    {
+	uint32_t d = ui;
+	emit(d);
+    }
+};
 #endif
+
+/*
+class MqttSerial : public Flow<MqttMessage, MqttMessage>
+{
+    AsyncFlow<std::string> serialBufferIn;
+    AsyncFlow<MqttMessage> mqttMessagesIn;
+    AsyncFlow<MqttMessage> mqttMessagesOut;
+    HandlerFlow<std::string, MqttMessage> lineHandler;
+    AsyncFlow<MqttMessage> mqttOut;
+
+    ValueSink<std::string> serialIn;
+    ValueSource<std::string> serialOut;
+
+  public:
+    Flow<std::string, std::string> serial;
+    Flow<MqttMessage, MqttMessage> mqttMessages;
+    ValueSource<bool> connected = false;
+    ValueSink<bool> wifiConnected;
+
+    MqttSerial()
+        : Flow(mqttMessagesIn, mqttMessagesOut)
+        , serialBufferIn(10)
+        , mqttOut(10)
+        , serial(serialBufferIn, serialOut)
+        , mqttMessagesIn(10)
+        , mqttMessagesOut(10)
+        , mqttMessages(mqttMessagesIn, mqttMessagesOut)
+    {
+        serialBufferIn >> lineHandler >> mqttOut;
+        mqttMessagesIn >> *new HandlerSink<MqttMessage>([=](MqttMessage m) {});
+    }
+
+    template <class T>
+    Sink<T>& toTopic(const char* name)
+    {
+        return *(new ToMqtt<T>(name)) >> this;
+    }
+    template <class T>
+    Source<T>& fromTopic(const char* name)
+    {
+        return (*this) >> *(new FromMqtt<T>(name));
+    }
+
+    void loop()
+    {
+        serialBufferIn.request();
+        mqttMessagesIn.request();
+    }
+    //    Sink<MqttMessage> publishOut;
+};
+
+class TopicFilter : public Filter<MqttMessage>
+{
+    std::string _topic;
+
+  public:
+    TopicFilter(const char* topic)
+        : Filter({topic, ""})
+        , _topic(topic)
+    {
+    }
+    void onNext(MqttMessage m)
+    {
+        if(m.topic == _topic) emit(m);
+    }
+};
+
+template <class T>
+class TopicTransform : Flow<MqttMessage, T>
+{
+  public:
+    static Flow<MqttMessage, T>& create(const char* name)
+    {
+        return *new Filter<MqttMessage>({name, ""}) >> *new FromJson<T>();
+    }
+};
+
+void test()
+{
+    ValueSource<uint32_t> x = 1;
+    ValueSink<double> y = 0.0;
+    ValueSink<uint32_t> z = 0;
+    Median<uint32_t, 11> median;
+    Median<double, 10> medianD;
+    IntToDouble toDouble;
+    DoubleToInt toInt;
+    Filter<MqttMessage> topicFilter({"dst/device/d", ""});
+
+    MqttSerial mqtt;
+
+    mqtt.fromTopic<uint32_t>("system/realTime") >> z;
+
+    Source<double> flow = x >> median >> toDouble;
+    Flow<uint32_t, double>& f = median >> toDouble;
+    Sink<uint32_t>& snk = median >> z;
+    //   auto src = x >> median >> toDouble;
+    flow >> medianD >> toInt >> median >> toDouble >> toInt >> snk;
+}*/
