@@ -21,7 +21,7 @@ class Wifi : public Coroutine
     uint8_t _mac[6];
 
 public:
-    ValueFlow<bool> connected;
+	ValueFlow<bool> connected;
     ValueFlow<int> rssi;
 	ValueFlow<std::string> ipAddress;
 	ValueFlow<std::string> ssid;

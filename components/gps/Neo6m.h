@@ -17,6 +17,7 @@ class Neo6m : public Coroutine,public Source<MqttMessage> {
 		void setup();
 		void loop();
 		void handleRxd();
+		void request();
 };
 
 #endif // NEO6M_H

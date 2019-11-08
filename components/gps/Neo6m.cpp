@@ -21,6 +21,11 @@ void Neo6m::setup() {
 	_uart.init();
 }
 
+void Neo6m::request() {
+	WARN(" data will be send async");
+}
+
+
 void Neo6m::loop() {
 }
 
