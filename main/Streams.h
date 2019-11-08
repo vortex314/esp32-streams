@@ -16,8 +16,14 @@ class Observer
 };
 // DD : used vector of void pointers and not vector of pointers to template class, to avoid explosion of vector
 // implementations
+class Requestable
+{
+  public:
+    virtual void request() { WARN(" I am abstract. Don't call me."); };
+};
+// not sure these extra inheritance are useful
 template <class T>
-class Observable
+class Source : public Requestable
 {
     std::vector<void*> _observers;
 
@@ -34,18 +40,11 @@ class Observable
     }
 };
 
-template <class OUT>
-class Source : public Observable<OUT>
-{
-  public:
-    virtual void request() { WARN(" I am abstract. Don't call me."); };
-};
-
 template <class IN>
 class Sink : public Observer<IN>
 {
 };
-
+// A flow can be both Sink and Source. Mos of the time it will be in the middle of a stream
 template <class IN, class OUT>
 class Flow : public Sink<IN>, public Source<OUT>
 {
@@ -94,21 +93,12 @@ class ValueFlow : public Flow<T, T>
     T _value;
 
   public:
-    ValueFlow() {  }
-    ValueFlow(T x)
-    {
-	_value = x;
-    };
-    void request()
-    {
-	    this->emit(_value);
-	}
-	void onNext(T value) { _value = value; }
-    inline void operator=(T value)
-    {
-	_value = value;
-    };
-    T operator()() { return _value; }
+    ValueFlow() {}
+    ValueFlow(T x) { _value = x; };
+    void request() { this->emit(_value); }
+    void onNext(T value) { _value = value; }
+    inline void operator=(T value) { _value = value; };
+    inline T operator()() { return _value; }
 };
 //______________________________________________________________________________
 //

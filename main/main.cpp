@@ -101,8 +101,27 @@ class Wait : public Flow<T, T>
 //______________________________________________________________________
 //
 ValueFlow<std::string> systemBuild  ;
-ValueFlow<std::string> systemHostname ;
+ValueFlow<std::string> systemHostname;
+LambdaSource<uint32_t> systemHeap([]() { return xPortGetFreeHeapSize(); });
 LambdaSource<uint64_t> systemUptime([]( ) { return Sys::millis(); });
+
+
+class Publisher : public Coroutine {
+	std::vector<Requestable*> _requestables;
+	uint32_t _interval;
+	uint32_t _idx=0;
+public:
+	Publisher():Coroutine("publihser"){};
+	void setup(){};
+	void loop(){
+		_idx++;
+		if ( _idx > _requestables.size()) _idx=0;
+		if ( _requestables.size()) _requestables[_idx]->request();
+		
+	}
+	Publisher& operator()(Requestable& rq){ _requestables.push_back(&rq);}
+};
+Publisher publisher;
 /*
  * LambdaSource<T>(handler) >> mqtt.ToMqtt<T>("")
  */
@@ -119,30 +138,17 @@ extern "C" void app_main(void)
 
     wifi.connected >> mqtt.wifiConnected;
     mqtt.connected >> led.blinkSlow;
-
-    propertyTimer >> roundRobin >>
-        *new LambdaFlow<TimerMsg, uint32_t>([](TimerMsg t) { return xPortGetFreeHeapSize(); }) >>
-        mqtt.toTopic<uint32_t>("system/heap");
-
-    //   roundRobin >> new HandlerFlow<TimerMsg, const char *>([](TimerMsg t) { return __DATE__ " " __TIME__; }) >>
-    //   mqtt.toTopic<const char *>("system/build");
-    /*
-         * propertyTimer >> roundRobin >> LambdaSource<uint32_t>([]() { return xPortGetFreeHeapSize(); }) >>
-        mqtt.toTopic<uint32_t>("system/heap")
-
-            auto t = new LambdaSource<uint32_t>([]() { return xPortGetFreeHeapSize(); }); */
-
-    roundRobin >> *new LambdaSource<uint32_t>([]() { return xPortGetFreeHeapSize(); }) >>
-        mqtt.toTopic<uint32_t>("system/heap");
-
-    roundRobin >> *new LambdaSource<uint32_t>([]() { return Sys::millis(); }) >>
-        mqtt.toTopic<uint32_t>("system/upTime");
-
+    
+	systemHeap >> mqtt.toTopic<uint32_t>("system/heap");
+	systemUptime >> mqtt.toTopic<uint64_t>("system/upTime");
     wifi.ipAddress >> mqtt.toTopic<std::string>("wifi/ipAddress");
 	wifi.rssi >> mqtt.toTopic<int>("wifi/rssi");
 	wifi.ssid >> mqtt.toTopic<std::string>("wifi/ssid");
 	systemBuild >> mqtt.toTopic<std::string>("system/build");
 	systemHostname >> mqtt.toTopic<std::string>("system/hostname");
+	
+	publisher(systemHeap)(systemUptime);
+	nonBlockingPool.add(publisher);
 
 #ifdef GPS
     gps >> mqtt;
