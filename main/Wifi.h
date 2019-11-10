@@ -14,29 +14,27 @@
 #include "nvs_flash.h"
 
 
-class Wifi : public Coroutine
-{
-    std::string _pswd;
-    std::string _prefix;
-    uint8_t _mac[6];
+class Wifi {
+		std::string _pswd;
+		std::string _prefix;
+		uint8_t _mac[6];
 
-public:
-	ValueFlow<bool> connected;
-    ValueFlow<int> rssi;
-	ValueFlow<std::string> ipAddress;
-	ValueFlow<std::string> ssid;
+	public:
+		ValueFlow<bool> connected;
+		ValueFlow<int> rssi;
+		ValueFlow<std::string> ipAddress;
+		ValueFlow<std::string> ssid;
+		ValueFlow<uint64_t> mac;
+		ValueFlow<std::string> macAddress;
 
-    Wifi( );
-    ~Wifi();
-    void setup();
-    void loop();
-
-    static esp_err_t wifi_event_handler(void* ctx, system_event_t* event);
-    void init();
-    void scanDoneHandler();
-    void connectToAP(const char* AP);
-    void startScan();
-    void wifiInit();
+		Wifi( );
+		~Wifi();
+		void init();
+		static esp_err_t wifi_event_handler(void* ctx, system_event_t* event);
+		bool scanDoneHandler();
+		void connectToAP(const char* AP);
+		void startScan();
+		void wifiInit();
 };
 
 #endif // WIFI_H

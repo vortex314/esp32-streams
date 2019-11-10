@@ -33,113 +33,109 @@ extern "C"
 //____________________________________________________________________________________________________________
 //
 typedef struct MqttMessage {
-    std::string topic;
-    std::string message;
+	std::string topic;
+	std::string message;
 } MqttMessage;
 //____________________________________________________________________________________________________________
 //
 template <class T>
-class ToMqtt : public Flow<T, MqttMessage>
-{
-    std::string _name;
+class ToMqtt : public Flow<T, MqttMessage> {
+		std::string _name;
 
-public:
-    ToMqtt(std::string name) : _name(name) {};
-    void onNext(T event)
-    {
-        std::string s;
-        DynamicJsonDocument doc(100);
-        JsonVariant variant = doc.to<JsonVariant>();
-        variant.set(event);
-        serializeJson(doc, s);
-        this->emit({_name, s});
-        // emit doesn't work as such
-        // https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
-    }
-    void request() {};
+	public:
+		ToMqtt(std::string name) : _name(name) {};
+		void onNext(T event) {
+			std::string s;
+			DynamicJsonDocument doc(100);
+			JsonVariant variant = doc.to<JsonVariant>();
+			variant.set(event);
+			serializeJson(doc, s);
+			this->emit({_name, s});
+			// emit doesn't work as such
+			// https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
+		}
+		void request() {};
 };
 
 
 //_______________________________________________________________________________________________________________
 //
 template <class T>
-class FromMqtt : public Flow<MqttMessage, T>
-{
-    std::string _name;
+class FromMqtt : public Flow<MqttMessage, T> {
+		std::string _name;
 
-public:
-    FromMqtt(std::string name) : _name(name) {};
-    void onNext(MqttMessage mqttMessage)
-    {
-        if (mqttMessage.topic != _name) {
-            return;
-        }
-        DynamicJsonDocument doc(100);
-        auto error = deserializeJson(doc, mqttMessage.message);
-        if (error) {
-            WARN(" failed JSON parsing '%s' : '%s' ", mqttMessage.message.c_str(), error.c_str());
-            return;
-        }
-        JsonVariant variant = doc.as<JsonVariant>();
-        if (variant.isNull()) {
-            WARN(" is not a JSON variant '%s' ", mqttMessage.message.c_str());
-            return;
-        }
-        if ( variant.is<T>() ==false ) {
-            WARN(" message '%s' JSON type doesn't match.", mqttMessage.message.c_str());
-            return;
-        }
-        T value = variant.as<T>();
-        this->emit(value);
-        // emit doesn't work as such
-        // https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
-    }
-    void request() {};
+	public:
+		FromMqtt(std::string name) : _name(name) {};
+		void onNext(MqttMessage mqttMessage) {
+			if (mqttMessage.topic != _name) {
+				return;
+			}
+			DynamicJsonDocument doc(100);
+			auto error = deserializeJson(doc, mqttMessage.message);
+			if (error) {
+				WARN(" failed JSON parsing '%s' : '%s' ", mqttMessage.message.c_str(), error.c_str());
+				return;
+			}
+			JsonVariant variant = doc.as<JsonVariant>();
+			if (variant.isNull()) {
+				WARN(" is not a JSON variant '%s' ", mqttMessage.message.c_str());
+				return;
+			}
+			if ( variant.is<T>() ==false ) {
+				WARN(" message '%s' JSON type doesn't match.", mqttMessage.message.c_str());
+				return;
+			}
+			T value = variant.as<T>();
+			this->emit(value);
+			// emit doesn't work as such
+			// https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
+		}
+		void request() {};
 };
 
-class Mqtt : public Coroutine,public AsyncFlow<MqttMessage>,public Sink<TimerMsg>
-{
+class Mqtt : public Sink<TimerMsg>,public Flow<MqttMessage,MqttMessage> {
 
-    StaticJsonDocument<3000> _jsonBuffer;
-    std::string _clientId;
-    std::string _address;
-    esp_mqtt_client_handle_t _mqttClient;
-    std::string _lwt_topic;
-    std::string _lwt_message;
-    Timer _reportTimer;
-    std::string _hostPrefix;
+		StaticJsonDocument<3000> _jsonBuffer;
+		std::string _clientId;
+		std::string _address;
+		esp_mqtt_client_handle_t _mqttClient;
+		std::string _lwt_topic;
+		std::string _lwt_message;
+		Timer _reportTimer;
+		std::string _hostPrefix;
 
-public:
-    LambdaSink<bool> wifiConnected;
-    ValueFlow<bool> connected;
-    TimerSource keepAliveTimer;
-    Mqtt();
-    ~Mqtt();
-    void setup();
-    void loop();
 
-    void mqttPublish(const char *topic, const char *message);
-    void mqttSubscribe(const char *topic);
-    void mqttConnect();
-    void mqttDisconnect();
+	public:
+		AsyncFlow<MqttMessage> outgoing;
+		AsyncFlow<MqttMessage> incoming;
+		LambdaSink<bool> wifiConnected;
+		ValueFlow<bool> connected;
+		TimerSource keepAliveTimer;
+		Mqtt();
+		~Mqtt();
+		void init();
 
-    bool handleMqttMessage(const char *message);
-    static int mqtt_event_handler( esp_mqtt_event_t* event);
+		void mqttPublish(const char *topic, const char *message);
+		void mqttSubscribe(const char *topic);
+		void mqttConnect();
+		void mqttDisconnect();
 
-    void onNext(TimerMsg);
-    void onNext(MqttMessage);
-    template <class T>
-    Sink<T>& toTopic(const char* name)
-    {
-        return *(new ToMqtt<T>(name))  >> *this;
-    }
-    template <class T>
-    Source<T>& fromTopic(const char* name)
-    {
-        auto newSource = new FromMqtt<T>(name);
-        (*this)>> *newSource;
-        return *newSource;
-    }
+		bool handleMqttMessage(const char *message);
+		static int mqtt_event_handler( esp_mqtt_event_t* event);
+
+		void onNext(TimerMsg);
+		void onNext(MqttMessage);
+		void request();
+		template <class T>
+		Sink<T>& toTopic(const char* name) {
+			return *(new ToMqtt<T>(name))  >> outgoing;
+		}
+		template <class T>
+		Source<T>& fromTopic(const char* name) {
+			auto newSource = new FromMqtt<T>(name);
+			incoming >> *newSource;
+			return *newSource;
+		}
 
 };
 

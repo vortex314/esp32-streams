@@ -22,7 +22,7 @@
 
 
 
-Wifi::Wifi() : Coroutine("wifi") {
+Wifi::Wifi()  {
 	rssi = 0;
 	_prefix = S(WIFI_SSID) ;
 	_pswd = S(WIFI_PASS);
@@ -31,19 +31,20 @@ Wifi::Wifi() : Coroutine("wifi") {
 Wifi::~Wifi() {
 }
 
-void Wifi::setup() {
+void Wifi::init() {
 	wifiInit();
-	esp_base_mac_addr_get(_mac);
+	union {
+		uint8_t macBytes[6];
+		uint64_t macInt;
+	};
+	macInt=0L;
+	if ( esp_read_mac(macBytes,ESP_MAC_WIFI_STA) != ESP_OK) WARN(" esp_base_mac_addr_get() failed.");;
+	std::string macs;
+	string_format(macs,"%02X:%02X:%02X:%02X:%02X:%02X",macBytes[5],macBytes[4],macBytes[3],macBytes[2],macBytes[1],macBytes[0]);
+	macAddress = macs;
+	mac = macInt;
 }
 
-void Wifi::loop() {
-	PT_BEGIN();
-	while(true) {
-		timeout(1000);
-		PT_YIELD_UNTIL(timeout());
-	}
-	PT_END();
-}
 
 //#define BZERO(x) ::memset(&x, sizeof(x), 0)
 static const char* TAG = "MQTT_EXAMPLE";
@@ -59,7 +60,11 @@ esp_err_t Wifi::wifi_event_handler(void* ctx, system_event_t* event) {
 
 		case SYSTEM_EVENT_SCAN_DONE: {
 				INFO("SYSTEM_EVENT_SCAN_DONE");
-				wifi.scanDoneHandler();
+				if ( wifi.scanDoneHandler() ) {
+					wifi.connectToAP(wifi.ssid().c_str());
+				} else {
+					wifi.startScan();
+				}
 				break;
 			}
 		case SYSTEM_EVENT_STA_STOP: {
@@ -104,7 +109,6 @@ esp_err_t Wifi::wifi_event_handler(void* ctx, system_event_t* event) {
 void Wifi::connectToAP(const char* ssid) {
 	INFO(" connecting to SSID : %s", ssid);
 	wifi_config_t wifi_config;
-	this->ssid = ssid;
 	memset(&wifi_config, 0, sizeof(wifi_config)); // needed !!
 	strncpy((char*) wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid)
 	        - 1);
@@ -115,14 +119,13 @@ void Wifi::connectToAP(const char* ssid) {
 	esp_wifi_connect();
 }
 
-void Wifi::scanDoneHandler() {
+bool Wifi::scanDoneHandler() {
 	uint16_t sta_number;
 	esp_wifi_scan_get_ap_num(&sta_number);
 	INFO(" found %d AP's , size : %d ", sta_number,sizeof(wifi_ap_record_t));
 	if (sta_number == 0) {
 		WARN(" no AP found , restarting scan.");
-		startScan();
-		return;
+		return false;
 	}
 	wifi_ap_record_t apRecords[sta_number];
 	esp_wifi_scan_get_ap_records(&sta_number, apRecords);
@@ -138,10 +141,11 @@ void Wifi::scanDoneHandler() {
 	}
 	if (strongestAP == -1) {
 		WARN(" no AP found matching pattern '%s', restarting scan.", _prefix.c_str());
-		startScan();
-		return;
+		return false;
 	}
-	connectToAP((const char*) apRecords[strongestAP].ssid);
+	this->ssid = (const char*) apRecords[strongestAP].ssid;
+	INFO(" found strongest AP : '%s'.",ssid().c_str());
+	return true;
 }
 
 void Wifi::startScan() {
