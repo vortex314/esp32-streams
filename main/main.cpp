@@ -91,7 +91,6 @@ class Loggy : public Flow<T,T> {
 
 #define PIN_LED 2
 
-Timer ledTimer(1, 10, true);
 LedBlinker led(PIN_LED, 100);
 
 CoroutinePool blockingPool, nonBlockingPool;
@@ -146,6 +145,7 @@ LambdaSource<uint64_t> systemUptime([]( ) { return Sys::millis(); });
 
 Poller slowPoller(100);
 Poller fastPoller(10);
+Poller ticker(10);
 
 extern "C" void app_main(void) {
 	Sys::hostname(S(HOSTNAME));
@@ -155,9 +155,13 @@ extern "C" void app_main(void) {
 
 	blockingPool.add(wifi);
 	blockingPool.add(mqtt);
+	ticker.run = true;
+
+	wifi.connected.emitOnChange(true);
+	mqtt.connected.emitOnChange(true);
 
 	wifi.connected >> mqtt.wifiConnected;
-	mqtt.connected.emitOnChange(true);
+
 	mqtt.connected >> led.blinkSlow;
 	mqtt.connected >> slowPoller.run;
 	mqtt.connected >> fastPoller.run;
@@ -172,7 +176,8 @@ extern "C" void app_main(void) {
 	wifi.ssid >> mqtt.toTopic<std::string>("wifi/ssid");
 
 	slowPoller(systemAlive)(systemHeap)(systemUptime)(systemBuild)(systemHostname)(wifi.ipAddress)(wifi.rssi)(wifi.ssid);
-	fastPoller( led.blinkTimer);
+	led.setup();
+	ticker( led.blinkTimer);
 #ifdef GPS
 	gps >> mqtt;
 	nonBlockingPool.add(gps);
@@ -225,7 +230,7 @@ extern "C" void app_main(void) {
 	nonBlockingPool.add(servo);
 #endif
 
-
+	nonBlockingPool.add(ticker);
 	nonBlockingPool.add(slowPoller);
 	nonBlockingPool.add(fastPoller);
 
@@ -234,15 +239,17 @@ extern "C" void app_main(void) {
 
 	xTaskCreatePinnedToCore([](void*) {
 		while(true) {
-			blockingPool.loopAll();
-			vTaskDelay(1);
-		}
-	}, "blocking", 20000,NULL, 10, NULL, PRO_CPU);
-
-	xTaskCreatePinnedToCore([](void*) {
-		while(true) {
 			nonBlockingPool.loopAll();
 			vTaskDelay(1);
 		}
-	}, "nonBlocking", 20000, NULL, 10, NULL, APP_CPU);
+	}, "nonBlocking", 20000, NULL, 16, NULL, APP_CPU);
+
+	/*	xTaskCreatePinnedToCore([](void*) {
+			while(true) {
+				blockingPool.loopAll();
+				vTaskDelay(1);
+			}
+		}, "blocking", 20000,NULL, 15, NULL, PRO_CPU);*/
+	blockingPool.loopAll();
+
 }

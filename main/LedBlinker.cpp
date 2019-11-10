@@ -1,7 +1,7 @@
 #include "LedBlinker.h"
 
 
-LedBlinker::LedBlinker(uint32_t pin, uint32_t delay) : blinkTimer(1,100,true) {
+LedBlinker::LedBlinker(uint32_t pin, uint32_t delay) : blinkTimer(1,delay,true) {
 	_pin = pin;
 	blinkTimer.interval(delay);
 	blinkSlow.handler([=](bool flag) {
@@ -18,10 +18,10 @@ void LedBlinker::setup() {
 	io_conf.pull_up_en = (gpio_pullup_t)1;
 	gpio_config(&io_conf);
 	blinkTimer >> *this;
-
 }
 void LedBlinker::onNext(TimerMsg m) {
 	gpio_set_level((gpio_num_t)_pin, _on ? 1 : 0 );
+//	INFO("let's blink");
 	_on = ! _on;
 }
 void LedBlinker::delay(uint32_t d) {

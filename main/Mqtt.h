@@ -94,7 +94,6 @@ class FromMqtt : public Flow<MqttMessage, T> {
 
 class Mqtt : public Coroutine,public AsyncFlow<MqttMessage>,public Sink<TimerMsg> {
 
-		bool _connected;
 		StaticJsonDocument<3000> _jsonBuffer;
 		std::string _clientId;
 		std::string _address;

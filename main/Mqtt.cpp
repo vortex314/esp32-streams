@@ -52,11 +52,12 @@ void Mqtt::setup() {
 
 	_reportTimer.start();
 
-	wifiConnected.handler([=](bool connected) {
-		if(connected) {
+	wifiConnected.handler([=](bool conn) {
+		INFO(" mqtt detected wifi connected.");
+		if(conn) {
 			esp_mqtt_client_start(_mqttClient);
 		} else {
-			if(_connected) esp_mqtt_client_stop(_mqttClient);
+			if(connected()) esp_mqtt_client_stop(_mqttClient);
 		}
 	});
 }
@@ -66,7 +67,7 @@ void Mqtt::loop() {
 }
 
 void Mqtt::onNext(MqttMessage m) {
-	if(_connected) {
+	if(connected()) {
 		std::string topic = _hostPrefix;
 		topic += m.topic;
 		mqttPublish(topic.c_str(), m.message.c_str());
@@ -91,7 +92,6 @@ int Mqtt::mqtt_event_handler(esp_mqtt_event_t* event) {
 		case MQTT_EVENT_BEFORE_CONNECT: {
 			}
 		case MQTT_EVENT_CONNECTED: {
-				me._connected = true;
 				INFO("MQTT_EVENT_CONNECTED to %s", me._address.c_str());
 				INFO(" session : %d %d ", event->session_present, event->msg_id);
 				msg_id = esp_mqtt_client_publish(me._mqttClient, "src/limero/systems", Sys::hostname(), 0, 1, 0);
@@ -100,12 +100,11 @@ int Mqtt::mqtt_event_handler(esp_mqtt_event_t* event) {
 				me.mqttSubscribe(topics.c_str());
 				topics += "/#";
 				me.mqttSubscribe(topics.c_str());
-				me.connected.emit(true);
+				me.connected=true;
 				break;
 			}
 		case MQTT_EVENT_DISCONNECTED: {
-				me._connected = false;
-				me.connected.emit(false);
+				me.connected=false;
 				INFO("MQTT_EVENT_DISCONNECTED");
 				break;
 			}
@@ -161,14 +160,14 @@ int Mqtt::mqtt_event_handler(esp_mqtt_event_t* event) {
 typedef enum { PING = 0, PUBLISH, PUBACK, SUBSCRIBE, SUBACK } CMD;
 
 void Mqtt::mqttPublish(const char* topic, const char* message) {
-	if(_connected == false) return;
+	if(connected() == false) return;
 	INFO("PUB : %s = %s", topic, message);
 	int id = esp_mqtt_client_publish(_mqttClient, topic, message, 0, 0, 0);
 	if(id < 0) WARN("esp_mqtt_client_publish() failed.");
 }
 
 void Mqtt::mqttSubscribe(const char* topic) {
-	if(_connected == false) return;
+	if(connected() == false) return;
 	INFO("Subscribing to topic %s ", topic);
 	int id = esp_mqtt_client_subscribe(_mqttClient, topic, 0);
 	if(id < 0) WARN("esp_mqtt_client_subscribe() failed.");

@@ -111,9 +111,14 @@ class ValueFlow : public Flow<T, T> {
 		ValueFlow() {}
 		ValueFlow(T x) { _value = x; };
 		void request() { this->emit(_value); }
-		void onNext(T value) { if ( _emitOnChange ) this->emit(value); _value=value; }
+		void onNext(T value) {
+			if ( _emitOnChange && (_value!=value)) {
+				this->emit(value);
+			}
+			_value=value;
+		}
 		void emitOnChange(bool b) {_emitOnChange=b;};
-		inline void operator=(T value) { _value = value; };
+		inline void operator=(T value) {onNext(value); };
 		inline T operator()() { return _value; }
 };
 //______________________________________________________________________________

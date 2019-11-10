@@ -79,8 +79,7 @@ esp_err_t Wifi::wifi_event_handler(void* ctx, system_event_t* event) {
 				char my_ip_address[20];
 				ip4addr_ntoa_r(&got_ip->ip_info.ip, my_ip_address, 20);
 				wifi.ipAddress = my_ip_address;
-
-				wifi.connected.emit(true);
+				wifi.connected = true;
 				break;
 			}
 		case SYSTEM_EVENT_STA_CONNECTED: {
@@ -89,7 +88,7 @@ esp_err_t Wifi::wifi_event_handler(void* ctx, system_event_t* event) {
 			}
 		case SYSTEM_EVENT_STA_DISCONNECTED: {
 				INFO("SYSTEM_EVENT_STA_DISCONNECTED");
-				wifi.connected.emit(false);
+				wifi.connected = false;
 				esp_wifi_connect();
 				break;
 			}
