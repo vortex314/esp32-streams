@@ -28,11 +28,12 @@ static mcpwm_dev_t* MCPWM[2] = {&MCPWM0, &MCPWM1};
 
 
 RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
-    : Coroutine("rotaryEncoder"),_pinTachoA(pinTachoA), _dInTachoB(DigitalIn::create(pinTachoB))
+    : _pinTachoA(pinTachoA), _dInTachoB(DigitalIn::create(pinTachoB)),_captures(20)
 {
     _isrCounter = 0;
     _mcpwm_num=MCPWM_UNIT_0;
     _timer_num=MCPWM_TIMER_0;
+    _captures >> *this;
 }
 
 RotaryEncoder::~RotaryEncoder() {}
@@ -49,7 +50,7 @@ void RotaryEncoder::setPwmUnit(uint32_t unit)
 // capture signal on falling edge, prescale = 0 i.e.
 // 80,000,000 counts is equal to one second
 // Enable interrupt on  CAP0, CAP1 and CAP2 signal
-void RotaryEncoder::setup()
+void RotaryEncoder::init()
 {
     INFO(" rotaryEncoder PWM[%d] capture : GPIO_%d direction : GPIO_%d ",_mcpwm_num,_pinTachoA,_dInTachoB.getPin());
     for (uint32_t i = 0; i < MAX_SAMPLES; i++)
@@ -75,55 +76,45 @@ void RotaryEncoder::setup()
     }
 }
 
-void RotaryEncoder::loop()
-{
-    PT_BEGIN();
-    while(true) {
-        timeout(100);
-        PT_YIELD_UNTIL(timeout());
-        emit(rpm());
-    }
-    PT_END();
-}
-
 
 const uint32_t weight = 10;
 
 void IRAM_ATTR
 RotaryEncoder::isrHandler(void* pv) // ATTENTION no float calculations in ISR
 {
-    RotaryEncoder* ms = (RotaryEncoder*)pv;
+    RotaryEncoder* re = (RotaryEncoder*)pv;
     uint32_t mcpwm_intr_status;
     // check encoder B when encoder A has isr,
     // indicates phase or rotation direction
-    int b = ms->_dInTachoB.read();
-    ms->_direction = (b == 1) ? (0 - ms->_directionSign) : ms->_directionSign;
+    int b = re->_dInTachoB.read();
+    re->_direction = (b == 1) ? (0 - re->_directionSign) : re->_directionSign;
 
-    mcpwm_intr_status = MCPWM[ms->_mcpwm_num]->int_st.val; // Read interrupt
+    mcpwm_intr_status = MCPWM[re->_mcpwm_num]->int_st.val; // Read interrupt
     // status
-    ms->_isrCounter++;
+    re->_isrCounter++;
     // Check for interrupt on rising edge on CAP0 signal
     if (mcpwm_intr_status & CAP0_INT_EN) {
-        ms->_prevCapture = ms->_capture;
-        ms->_prevCaptureTime =  ms->_captureTime;
         uint32_t capt = mcpwm_capture_signal_get_value(
-                            ms->_mcpwm_num,
+                            re->_mcpwm_num,
                             MCPWM_SELECT_CAP0); // get capture signal counter value
-        ms->_capture = capt;
-        ms->_captureTime=Sys::millis();
+        re->_captures.onNextFromIsr({capt,Sys::millis()});
     }
-    MCPWM[ms->_mcpwm_num]->int_clr.val = mcpwm_intr_status;
+    MCPWM[re->_mcpwm_num]->int_clr.val = mcpwm_intr_status;
 }
 
-int32_t RotaryEncoder::calcRpm()
+void RotaryEncoder::onNext(CaptureMsg cm)
 {
-    static int oldRpm=0;
-    if ( _captureTime < ( Sys::millis()-100))  return medianFilter(0);
-    _delta =_capture - _prevCapture;
-    if ( _delta == 0 ) return medianFilter(oldRpm);
+    _delta =cm.capture - _prevCapture;
     int32_t rpm = deltaToRpm(_delta,_direction);
-    oldRpm=rpm;
-    return medianFilter(rpm);
+    INFO(" rpm %d , delta %d , time %llu ",rpm,_delta,cm.time);
+    _prevCapture = cm.capture;
+    _prevCaptureTime = cm.time;
+    emit(rpm);
+}
+
+void RotaryEncoder::request()
+{
+    _captures.request();
 }
 
 
@@ -133,27 +124,4 @@ int32_t RotaryEncoder::deltaToRpm(uint32_t delta, int32_t direction)
               (delta * PULSE_PER_ROTATION);
     int32_t rpm = ((int32_t)t) * _direction;
     return rpm;
-}
-
-int32_t RotaryEncoder::filter(int32_t f)
-{
-    int32_t result;
-    _samples[(_indexSample++) % MAX_SAMPLES] = f;
-    result = 0;
-    for (uint32_t i = 0; i < MAX_SAMPLES; i++) {
-        result += _samples[i];
-    }
-    result /= MAX_SAMPLES;
-    return result;
-}
-
-#include <array>
-#include <algorithm>
-int32_t RotaryEncoder::medianFilter(int32_t f)
-{
-    static std::array<int32_t,MAX_SAMPLES> samples;
-    samples[(_indexSample++) % MAX_SAMPLES] = f;
-    size_t n= MAX_SAMPLES/2;
-    std::sort(std::begin(samples),std::end(samples));
-    return samples[n];
 }

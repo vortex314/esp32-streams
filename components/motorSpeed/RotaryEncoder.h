@@ -14,8 +14,12 @@
 
 #define MAX_SAMPLES 5
 
+typedef struct  {
+    uint32_t capture;
+    uint64_t time;
+} CaptureMsg;
 
-class RotaryEncoder : public Coroutine,public Source<int32_t>
+class RotaryEncoder : public Flow<CaptureMsg,int32_t>
 {
     uint32_t _pinTachoA;
     DigitalIn& _dInTachoB;
@@ -36,24 +40,27 @@ class RotaryEncoder : public Coroutine,public Source<int32_t>
     mcpwm_timer_t _timer_num;
     int32_t _samples[MAX_SAMPLES];
     uint32_t _indexSample = 0;
+    AsyncFlow<CaptureMsg> _captures;
 
 
 public:
-	ValueFlow<int32_t> rpm=0;
-	ValueFlow<int32_t> direction=0;
+    ValueFlow<int32_t> rpm=0;
+    ValueFlow<int32_t> direction=0;
+
     RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB);
     ~RotaryEncoder();
-    void setup();
-    void loop();
+    void init();
     Erc initialize();
     static void onRaise(void*);
     static void isrHandler(void*);
     int32_t deltaToRpm(uint32_t delta, int32_t direction);
 
-	int32_t calcRpm();
+    int32_t calcRpm();
     void setPwmUnit(uint32_t);
-    int32_t filter(int32_t inp);
-    int32_t medianFilter(int32_t inp);
+
+    void request();
+    void onNext(CaptureMsg);
+
 };
 
 #endif // ROTARYENCODER_H

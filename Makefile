@@ -39,13 +39,13 @@ MOTOR_WIFI :
 	touch main/main.cpp
 	make DEFINE="-DMOTOR=1 -DHOSTNAME=motor"
 	
-STEER_WIFI :
+SERVO_WIFI :
 	touch main/main.cpp
 	make DEFINE="-DSERVO=2 -DHOSTNAME=steer"
 	
 DRIVE :
 	touch main/main.cpp
-	make DEFINE="-DMOTORSPEED=1 -DMOTORSERVO=2 -DHOSTNAME=drive" 
+	make DEFINE="-DMOTOR=1 -DSERVO=2 -DHOSTNAME=drive" 
 	
 TAG_WIFI :
 	touch main/main.cpp
