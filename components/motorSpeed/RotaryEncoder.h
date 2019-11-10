@@ -19,7 +19,7 @@ typedef struct  {
     uint64_t time;
 } CaptureMsg;
 
-class RotaryEncoder : public Flow<CaptureMsg,int32_t>
+class RotaryEncoder : public Source<int32_t>
 {
     uint32_t _pinTachoA;
     DigitalIn& _dInTachoB;

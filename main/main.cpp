@@ -243,28 +243,30 @@ extern "C" void app_main(void)
 
 #ifdef MOTOR
     tacho.init();
-    tacho >> *new Median<int, 11>() >> *new Throttle<int>(1000)  >>  mqtt.toTopic<int32_t>("motor/rpmMeasured");
-//   tachoClean >> mqtt.toTopic<int32_t>("motor/rpmMeasured");
-//   tacho >> *new Median<int32_t,5>() >> motor.rpmMeasured;
+//    tacho >> *new Median<int, 11>() >> *new Throttle<int>(1000)  >>  mqtt.toTopic<int32_t>("motor/rpmMeasured");
+    tacho >> mqtt.toTopic<int>("motor/rpmMeasured");
+    tacho >> motor.rpmMeasured;
     fastPoller(tacho);
-    /*
-        motor.output >> mqtt.toTopic<float>("motor/pwm");
-        motor.integral >> mqtt.toTopic<float>("motor/I");
-        motor.derivative >> mqtt.toTopic<float>("motor/D");
-        motor.proportional >> mqtt.toTopic<float>("motor/P");
-        motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
-        mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
 
-        servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
-        servo.integral >> mqtt.toTopic<float>("servo/I");
-        servo.derivative >> mqtt.toTopic<float>("servo/D");
-        servo.proportional >> mqtt.toTopic<float>("servo/P");
-        servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
-        servo.angleMeasured >> mqtt.toTopic<int>("servo/angleMeasured");
-        mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
+    motor.output >> mqtt.toTopic<float>("motor/pwm");
+    motor.integral >> mqtt.toTopic<float>("motor/I");
+    motor.derivative >> mqtt.toTopic<float>("motor/D");
+    motor.proportional >> mqtt.toTopic<float>("motor/P");
+    motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
+    mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
 
-        //    nonBlockingPool.add(motor);
-        nonBlockingPool.add(servo);*/
+    nonBlockingPool.add(motor);
+
+    /*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
+           servo.integral >> mqtt.toTopic<float>("servo/I");
+           servo.derivative >> mqtt.toTopic<float>("servo/D");
+           servo.proportional >> mqtt.toTopic<float>("servo/P");
+           servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
+           servo.angleMeasured >> mqtt.toTopic<int>("servo/angleMeasured");
+           mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
+
+           //
+           nonBlockingPool.add(servo);*/
 #endif
 
     nonBlockingPool.add(ticker);
