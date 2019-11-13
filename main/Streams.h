@@ -5,22 +5,24 @@
 #include <deque>
 #include <functional>
 #include <vector>
-#include <printf.h>
 
 #ifdef ARDUINO
+#include <printf.h>
 #define LOG(fmt, ...)                                                          \
 	{                                                                            \
 		char line[256];                                                            \
-		int len = snprintf(line,sizeof(line), "\r\nI %06lld | %.8s:%.3d | ", Sys::millis(), __FILE__, __LINE__);         \
-		snprintf((char*)(line+len),sizeof(line)-len, fmt, ##__VA_ARGS__);                \
-		Serial.print(line);                                                        \
+		int len = snprintf(line, sizeof(line), "I %06lld | %.12s:%.3d | ",      \
+		                   Sys::millis(), __FILE__, __LINE__);                     \
+		snprintf((char *)(line + len), sizeof(line) - len, fmt, ##__VA_ARGS__);    \
+		Serial.println(line);                                                        \
 	}
 #define WARN(fmt, ...)                                                         \
 	{                                                                            \
 		char line[256];                                                            \
-		int len = snprintf(line,sizeof(line), "\r\nW %06lld | %.8s:%.3d | ", Sys::millis(), __FILE__, __LINE__);         \
-		snprintf((char*)(line+len),sizeof(line)-len, fmt, ##__VA_ARGS__);                \
-		Serial.print(line);                                                        \
+		int len = snprintf(line, sizeof(line), "W %06lld | %.12s:%.3d | ",      \
+		                   Sys::millis(), __FILE__, __LINE__);                     \
+		snprintf((char *)(line + len), sizeof(line) - len, fmt, ##__VA_ARGS__);    \
+		Serial.println(line);                                                        \
 	}
 class Sys {
 	public:
@@ -153,6 +155,19 @@ template <class T> class LambdaSink : public Sink<T> {
 		void handler(std::function<void(T)> handler) { _handler = handler; };
 		void onNext(T event) { _handler(event); };
 };
+//________________________________________________________________________
+//
+template <class T>
+class LambdaSource : public Source< T> {
+		std::function<T()> _handler;
+
+	public:
+		LambdaSource(std::function<T()> handler)
+			: _handler(handler) {};
+		void request() {
+			this->emit(_handler());
+		}
+};
 //______________________________________________________________________________
 //
 template <class IN, class OUT> class LambdaFlow : public Flow<IN, OUT> {
@@ -280,15 +295,25 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 	public:
 		AsyncFlow(uint32_t size) : _queueDepth(size) {}
 		void onNext(T event) {
+			noInterrupts();
 			if (_buffer.size() >= _queueDepth) {
 				_buffer.pop_front();
 				//					WARN(" buffer overflow in
 				// BufferedSink ");
 			}
 			_buffer.push_back(event);
+			interrupts();
+		}
+
+		void onNextFromIsr(T event) {
+			if (_buffer.size() >= _queueDepth) {
+				_buffer.pop_front();
+			}
+			_buffer.push_back(event);
 		}
 
 		void request() {
+			noInterrupts();
 			T t;
 			bool hasData = false;
 			if (_buffer.size()) {
@@ -298,10 +323,12 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 			}
 			if (hasData)
 				this->emit(t);
+			interrupts();
 		}
 };
 #endif
-
+//______________________________________________________________________________
+//
 template <class T> class AsyncValueFlow : Flow<T, T> {
 		T _value;
 
@@ -309,7 +336,8 @@ template <class T> class AsyncValueFlow : Flow<T, T> {
 		void onNext(T value) { _value = value; }
 		void request() { this->emit(_value); }
 };
-
+//______________________________________________________________________________
+//
 class AtomicSource : public Source<uint32_t> {
 		std::atomic<uint32_t> _atom;
 
@@ -322,7 +350,27 @@ class AtomicSource : public Source<uint32_t> {
 			}
 		}
 };
-
+template <class T>
+class Throttle : public Flow<T,T> {
+		uint32_t _delta;
+		uint64_t _nextEmit;
+		T _lastValue;
+	public:
+		Throttle(uint32_t delta) {
+			_delta = delta;
+		}
+		void onNext(T value) {
+			uint64_t now=Sys::millis();
+			if ( (_lastValue != value) || ( now > _nextEmit)) {
+				this->emit(value);
+				_nextEmit=now + _delta;
+			}
+			_lastValue=value;
+		}
+		void request() {};
+};
+//______________________________________________________________________________
+//
 class TimerMsg {
 	public:
 		uint32_t id;
@@ -350,5 +398,6 @@ class TimerSource : public Source<TimerMsg> {
 		}
 		uint64_t expireTime() { return _expireTime; }
 };
-
+//______________________________________________________________________________
+//
 #endif

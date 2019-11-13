@@ -4,19 +4,7 @@
 #include <Mqtt.h>
 #include <LedBlinker.h>
 #include "freertos/task.h"
-//________________________________________________________________________
-//
-template <class T>
-class LambdaSource : public Source< T> {
-		std::function<T()> _handler;
 
-	public:
-		LambdaSource(std::function<T()> handler)
-			: _handler(handler) {};
-		void request() {
-			this->emit(_handler());
-		}
-};
 //______________________________________________________________________
 //
 template <class T>
@@ -72,25 +60,7 @@ class Poller : public Coroutine {
 #define PRO_CPU 0
 #define APP_CPU 1
 
-template <class T>
-class Throttle : public Flow<T,T> {
-		uint32_t _delta;
-		uint64_t _nextEmit;
-		T _lastValue;
-	public:
-		Throttle(uint32_t delta) {
-			_delta = delta;
-		}
-		void onNext(T value) {
-			uint64_t now=Sys::millis();
-			if ( (_lastValue != value) || ( now > _nextEmit)) {
-				this->emit(value);
-				_nextEmit=now + _delta;
-			}
-			_lastValue=value;
-		}
-		void request() {};
-};
+
 //______________________________________________________________________
 //
 
