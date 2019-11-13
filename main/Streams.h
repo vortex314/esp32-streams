@@ -5,20 +5,21 @@
 #include <deque>
 #include <functional>
 #include <vector>
+#include <printf.h>
 
 #ifdef ARDUINO
 #define LOG(fmt, ...)                                                          \
 	{                                                                            \
 		char line[256];                                                            \
-		sprintf(line, "\r\n%lld | %s:%d | ", Sys::millis(), __FILE__, __LINE__);         \
-		sprintf((char *)(line + strlen(line)), fmt, ##__VA_ARGS__);                \
+		int len = snprintf(line,sizeof(line), "\r\nI %06lld | %.8s:%.3d | ", Sys::millis(), __FILE__, __LINE__);         \
+		snprintf((char*)(line+len),sizeof(line)-len, fmt, ##__VA_ARGS__);                \
 		Serial.print(line);                                                        \
 	}
 #define WARN(fmt, ...)                                                         \
 	{                                                                            \
 		char line[256];                                                            \
-		sprintf(line, "\r\n%lld | %s:%d | ", Sys::millis(), __FILE__, __LINE__);         \
-		sprintf((char *)(line + strlen(line)), fmt, ##__VA_ARGS__);                \
+		int len = snprintf(line,sizeof(line), "\r\nW %06lld | %.8s:%.3d | ", Sys::millis(), __FILE__, __LINE__);         \
+		snprintf((char*)(line+len),sizeof(line)-len, fmt, ##__VA_ARGS__);                \
 		Serial.print(line);                                                        \
 	}
 class Sys {
@@ -344,12 +345,10 @@ class TimerSource : public Source<TimerMsg> {
 		void request() {
 			if (Sys::millis() > _expireTime) {
 				_expireTime += _interval;
-				//    LOG("[%lu] %lld > % lld => %ld \r\n", _id, Sys::millis(),
-				//    _expireTime,
-				//        _interval);
 				this->emit({_id});
 			}
 		}
+		uint64_t expireTime() { return _expireTime; }
 };
 
 #endif
