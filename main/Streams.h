@@ -10,17 +10,15 @@
 #define LOG(fmt, ...)                                                          \
 	{                                                                            \
 		char line[256];                                                            \
-		sprintf(line, "%lld | %s:%d ", Sys::millis(), __FILE__, __LINE__);         \
+		sprintf(line, "\r\n%lld | %s:%d | ", Sys::millis(), __FILE__, __LINE__);         \
 		sprintf((char *)(line + strlen(line)), fmt, ##__VA_ARGS__);                \
-		strcat(line, "\r\n");                                                      \
 		Serial.print(line);                                                        \
 	}
 #define WARN(fmt, ...)                                                         \
 	{                                                                            \
 		char line[256];                                                            \
-		sprintf(line, "%lld | ", Sys::millis());                                   \
+		sprintf(line, "\r\n%lld | %s:%d | ", Sys::millis(), __FILE__, __LINE__);         \
 		sprintf((char *)(line + strlen(line)), fmt, ##__VA_ARGS__);                \
-		strcat(line, "\r\n");                                                      \
 		Serial.print(line);                                                        \
 	}
 class Sys {
@@ -39,7 +37,7 @@ class Sys {
 //
 template <class T> class Observer {
 	public:
-		virtual void onNext(T) = 0;
+		virtual void onNext(const T) = 0;
 };
 template <class IN> class Sink : public Observer<IN> {};
 //______________________________________________________________________________
@@ -66,7 +64,7 @@ template <class T> class Source : public Requestable {
 			_observers.push_back((void *)&observer);
 		}
 
-		void emit(T t) {
+		void emit(const T t) {
 			for (void *pv : _observers) {
 				Observer<T> *pObserver = static_cast<Observer<T> *>(pv);
 				pObserver->onNext(t);
@@ -94,7 +92,7 @@ template <class IN, class OUT> class CompositeFlow : public Flow<IN, OUT> {
 	public:
 		CompositeFlow(Sink<IN> &a, Source<OUT> &b) : _in(a), _out(b) {};
 		void request() { _out.request(); };
-		void onNext(IN in) { _in.onNext(in); }
+		void onNext(const IN in) { _in.onNext(in); }
 };
 //______________________________________________________________________________________
 //
@@ -133,7 +131,7 @@ template <class T> class ValueFlow : public Flow<T, T> {
 		ValueFlow() {}
 		ValueFlow(T x) { _value = x; };
 		void request() { this->emit(_value); }
-		void onNext(T value) {
+		void onNext(const T value) {
 			if (_emitOnChange && (_value != value)) {
 				this->emit(value);
 			}
