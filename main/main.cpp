@@ -127,6 +127,7 @@ LambdaSource<uint64_t> systemUptime([]( ) {
 Poller slowPoller(5000);
 Poller fastPoller(10);
 Poller ticker(10);
+Thread mqttThread;
 
 extern "C" void app_main(void) {
 	Sys::hostname(S(HOSTNAME));
@@ -153,6 +154,9 @@ extern "C" void app_main(void) {
 	mqtt.connected >> led.blinkSlow;
 	mqtt.connected >> slowPoller.run;
 	mqtt.connected >> fastPoller.run;
+
+	mqtt.subscribeOn(mqttThread);
+
 
 //	systemAlive >> mqtt.toTopic<bool>("system/alive");
 	systemHeap >> mqtt.toTopic<uint32_t>("system/heap");
@@ -244,5 +248,9 @@ extern "C" void app_main(void) {
 			vTaskDelay(1);
 		}
 	}, "blocking", 20000,NULL, 17, NULL, PRO_CPU);
+
+	xTaskCreatePinnedToCore([](void*) {
+		mqttThread.run();
+	}, "mqttThread", 20000,NULL, 17, NULL, PRO_CPU);
 
 }

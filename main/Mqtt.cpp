@@ -73,11 +73,16 @@ void Mqtt::init() {
 //________________________________________________________________________
 //
 void Mqtt::request() {
-	if ( connected()) {
-		incoming.request();
-		outgoing.request();
-		keepAliveTimer.request();
-	}
+	/*	if ( connected()) {
+			incoming.request();
+			outgoing.request();
+			keepAliveTimer.request();
+		}*/
+}
+
+void Mqtt::subscribeOn(Thread& t) {
+	t.addTimer(&keepAliveTimer);
+	outgoing.subscribeOn(t);
 }
 //________________________________________________________________________
 //

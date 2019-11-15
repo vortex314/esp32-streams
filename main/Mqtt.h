@@ -3,9 +3,8 @@
 extern "C"
 {
 #include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
-#include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 
 #include "esp_wifi.h"
@@ -136,6 +135,7 @@ class Mqtt : public Sink<TimerMsg>,public Flow<MqttMessage,MqttMessage> {
 			incoming >> *newSource;
 			return *newSource;
 		}
+		void subscribeOn(Thread& thread );
 
 };
 
