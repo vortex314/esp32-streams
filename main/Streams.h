@@ -230,6 +230,7 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 		std::deque<T> _buffer;
 		uint32_t _queueDepth;
 		SemaphoreHandle_t xSemaphore = NULL;
+		Thread* _subscriberThread;
 
 	public:
 		AsyncFlow(uint32_t size) : _queueDepth(size) {
@@ -246,6 +247,7 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 				}
 				_buffer.push_back(event);
 				xSemaphoreGive(xSemaphore);
+				_subscriberThread.awakeRequestable(this);
 				return;
 			} else {
 				WARN(" timeout on async buffer ! ");
@@ -262,6 +264,7 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 				}
 				_buffer.push_back(event);
 				xSemaphoreGive(xSemaphore);
+				if ( _subscriberThread) _subscriberThread->awakeRequestableFromIsr(this);
 				return;
 			} else {
 				//           WARN(" timeout on async buffer ! "); // no log from ISR
@@ -285,12 +288,15 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 				WARN(" timeout on async buffer ! ");
 			}
 		}
+
+		void subscribeOn(Thread* thread){_subscriberThread=thread;};
 };
 #else
 
 template <class T> class AsyncFlow : public Flow<T, T> {
 		std::deque<T> _buffer;
 		uint32_t _queueDepth;
+		Thread& _subscriberThread;
 
 	public:
 		AsyncFlow(uint32_t size) : _queueDepth(size) {}
@@ -325,6 +331,9 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 				this->emit(t);
 			interrupts();
 		}
+
+		void subscribeOn(Thread* thread){_subscriberThread=thread;};
+
 };
 #endif
 //______________________________________________________________________________
@@ -400,4 +409,100 @@ class TimerSource : public Source<TimerMsg> {
 };
 //______________________________________________________________________________
 //
+
+class Thread {
+	std::vector<Requestable*> _requestables;
+	std::vector<TimerSource*> _timers;
+	 QueueHandle_t xQueueCreate( UBaseType_t uxQueueLength,
+                             UBaseType_t uxItemSize );
+	public:
+	void addTimer(TimerSource& ts){ _requestables.push_back(&ts)};
+	void addRequestable(Requestable& rq){ _requestables.push_back(&rq)};
+#ifdef ARDUINO
+	Thread(){};
+
+	void awakeRequestable(Requestable& rq) { };
+	void awakeRequestableFromIsr(Requestable& rq) {};
+
+	void run { // ARDUINO single thread version ==> continuous polling
+		for( auto timer:_timers) timer->request();
+		for( auto requestable:_requestables) requestable->request();
+	}
+#else
+private:
+	QueueHandle_t _workQueue;
+public:
+	Thread()
+{    _workQueue = xQueueCreate( 10, sizeof( Requestable*) );
+};
+	void awakeRequestable(Requestable& rq) { xQueueSend( _workQueue, ( void * ) &rq, ( TickType_t ) 0 ); };
+	void awakeRequestableFromIsr(Requestable& rq) {xQueueSendFromIsr( _workQueue, ( void * ) &rq, ( TickType_t ) 0 ); };
+
+	void run { // FREERTOS block thread until awake or timer expired.
+	while(true){
+		for( auto timer:_timers)  {
+			uint64_t expTime=Sys::millis()+1000;
+			Timer* expiredTimer=0;
+			if ( timer->expireTime() < expTime){
+				expTime=timer->expireTime();
+				expiredTimer = timer;
+			}
+		}
+			if ( expTime < Sys::millis()) {
+				expiredTimer->request();
+			} else {
+				Requestable* prq;
+				 if( xQueueReceive( _workQueue, &prq, ( TickType_t ) (expTime-Sys::millis()) ) )
+				 {
+					 prq->request();
+				 } 
+			}
+		}
+	}
+}
 #endif
+void xx(){
+
+	S::Sink<xx>const 
+	S::Thread ==> freeRtos or Arduino 
+
+		addTimer() ==> TimerSource.expireTime() ==> TimerSource.request()
+		awakeRequestable(requestable) ==> queue.push(requestable)
+		awakeRequestableFromIsr(requestable)
+
+		for(timer : _timers) {
+			if ( timer->expireTime() < expTime){
+				expTime=timer->expireTime
+				expTimer = timer;
+			}
+		}
+		if ( expTime < Sys::millis()) timer-> request()
+		waitQueue(expTime-Sys::millis())
+		if ( expired ) timer->request();
+		else ( queueVal->request());
+		
+		
+
+	timer1 >> mqtt;
+	timer2 >> mqtt;
+	timer3 >> mqtt;
+	outgoing >> mqtt;
+	mqtt >> incoming;
+	mqtt.connected >> poller.run;
+	serial.incoming >> mqtt.serialIn;
+	mqtt.serialOut >> serial.outgoing;
+
+	timer1.SubscribeOn(mqttThread);   ==> mqttThread.addTimer(timer1);
+	outgoing.SubscribeOn(mqttThread);  ==> mqttThread.addSource(outgoing); AsyncFlow::Thread* _subscribeThread
+
+	outgoing.onNext(xx) => push_back(xx);_subscribeThread.awakeSource(this);
+
+	Thread	 : awakeSource(Requestable xx) => xx on queue ==>  xx.request()
+
+
+	/* thread
+		==> get minimal expireTime
+		==> wait on own queue
+		==> if ( queue contains address ) ==> source.request();
+		==> if ( timeout )
+}
