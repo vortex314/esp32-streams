@@ -311,14 +311,14 @@ class Thread {
 		std::vector<TimerSource*> _timers;
 
 	public:
-		void addTimer(TimerSource& ts) { _requestables.push_back(&ts)};
-		void addRequestable(Requestable& rq) { _requestables.push_back(&rq)};
+		void addTimer(TimerSource& ts) { _requestables.push_back(&ts);};
+		void addRequestable(Requestable& rq) { _requestables.push_back(&rq);};
 		Thread() {};
 
 		void awakeRequestable(Requestable& rq) { };
 		void awakeRequestableFromIsr(Requestable& rq) {};
 
-		void run { // ARDUINO single thread version ==> continuous polling
+		void run() { // ARDUINO single thread version ==> continuous polling
 			for( auto timer:_timers) timer->request();
 			for( auto requestable:_requestables) requestable->request();
 		}
@@ -447,7 +447,6 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 template <class T> class AsyncFlow : public Flow<T, T> {
 		std::deque<T> _buffer;
 		uint32_t _queueDepth;
-		Thread& _subscriberThread;
 
 	public:
 		AsyncFlow(uint32_t size) : _queueDepth(size) {}
@@ -483,7 +482,6 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 			interrupts();
 		}
 
-		void subscribeOn(Thread* thread) {_subscriberThread=thread;};
 
 };
 #endif
