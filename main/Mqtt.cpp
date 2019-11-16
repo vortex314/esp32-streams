@@ -80,9 +80,9 @@ void Mqtt::request() {
 		}*/
 }
 
-void Mqtt::subscribeOn(Thread& t) {
+void Mqtt::observeOn(Thread& t) {
 	t.addTimer(&keepAliveTimer);
-	outgoing.subscribeOn(t);
+	outgoing.observeOn(t);
 }
 //________________________________________________________________________
 //

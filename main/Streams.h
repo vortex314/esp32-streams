@@ -7,6 +7,8 @@
 #include <vector>
 
 #ifdef ARDUINO
+#elif defined(__linux__)
+#define LINUX
 #else
 #define FREERTOS
 #include <FreeRTOS.h>
@@ -34,6 +36,7 @@
 		snprintf((char *)(line + len), sizeof(line) - len, fmt, ##__VA_ARGS__);    \
 		Serial.println(line);                                                        \
 	}
+#define INFO LOG
 class Sys {
 	public:
 		static String hostname;
@@ -51,19 +54,23 @@ template <class T> class Observer {
 	public:
 		virtual void onNext(const T) = 0;
 };
-template <class IN> class Sink : public Observer<IN> {};
+template <class IN> class Sink : public Observer<IN> {
+};
 //______________________________________________________________________________
+class Thread;
+template <class IN,class OUT> class Flow;
 //
 // DD : used vector of void pointers and not vector of pointers to template
 // class, to avoid explosion of vector implementations
 class Requestable {
 	public:
-		virtual void
-		request() = 0; //{ WARN(" I am abstract Requestable. Don't call me."); };
+		virtual void request() = 0;
+		//{ WARN(" I am abstract Requestable. Don't call me."); };
 };
 // not sure these extra inheritance are useful
 template <class T> class Source : public Requestable {
 		std::vector<void *> _observers;
+		Thread* _observerThread=0;
 
 	protected:
 		uint32_t size() { return _observers.size(); }
@@ -72,7 +79,7 @@ template <class T> class Source : public Requestable {
 		}
 
 	public:
-		void subscribe(Observer<T> &observer) {
+		virtual void subscribe(Observer<T> &observer) {
 			_observers.push_back((void *)&observer);
 		}
 
@@ -82,6 +89,8 @@ template <class T> class Source : public Requestable {
 				pObserver->onNext(t);
 			}
 		}
+		void observeOn(Thread& thread) { _observerThread = &thread;}
+		Thread* observerThread() { return _observerThread; }
 };
 
 // A flow can be both Sink and Source. Most of the time it will be in the middle
@@ -94,39 +103,52 @@ class Flow : public Sink<IN>, public Source<OUT> {
 		Flow() {};
 		Flow<IN, OUT>(Sink<IN> &a, Source<OUT> &b) : Sink<IN>(a), Source<OUT>(b) {};
 };
-//_________________________________________ CompositeFlow
-//_____________________________________________
+//_________________________________________CompositeFlow_______________________________
 //
-template <class IN, class OUT> class CompositeFlow : public Flow<IN, OUT> {
-		Sink<IN> &_in;
-		Source<OUT> &_out;
+template <class IN, class INTERM, class OUT>
+class CompositeFlow : public Flow<IN, OUT> {
+		Flow<IN,INTERM> &_in;
+		Flow<INTERM,OUT> &_out;
 
 	public:
-		CompositeFlow(Sink<IN> &a, Source<OUT> &b) : _in(a), _out(b) {};
-		void request() { _out.request(); };
-		void onNext(const IN in) { _in.onNext(in); }
+		CompositeFlow(Flow<IN,INTERM> &a, Flow<INTERM,OUT> &b) : Flow<IN,OUT>(a,b),_in(a),_out(b) {
+		};
+		void request() {
+			_in.request();
+		};
+		void onNext(const IN in) {
+			_in.onNext(in);
+		}
+		void subscribe(Observer<OUT>& observer) {
+			_out.subscribe(observer);
+		}
 };
 //______________________________________________________________________________________
 //
 template <class IN, class INTERM, class OUT>
-Flow<IN, OUT> &operator>>(Flow<IN, INTERM> &flow1, Flow<INTERM, OUT> &flow2) {
+Flow<IN, OUT> &operator>>(Flow<IN, INTERM> &flow1, Flow<INTERM, OUT> &flow2)  {
+	INFO("Flow >> Flow ");
+	Flow<IN,OUT>* cflow = new CompositeFlow<IN, INTERM,OUT>(flow1, flow2);
 	flow1.subscribe(flow2);
-	return *new CompositeFlow<IN, OUT>(flow1, flow2);
+	return *cflow;
 };
 
 template <class IN, class OUT>
 Sink<IN> &operator>>(Flow<IN, OUT> &flow, Sink<OUT> &sink) {
+	INFO("Flow >> Sink");
 	flow.subscribe(sink);
 	return flow;
 };
 
 template <class IN, class OUT>
 Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> &flow) {
+	INFO("Source >> Flow");
 	source.subscribe(flow);
 	return flow;
 };
 
 template <class OUT> void operator>>(Source<OUT> &source, Sink<OUT> &sink) {
+	INFO("Source >> Sink");
 	source.subscribe(sink);
 };
 
@@ -141,7 +163,7 @@ template <class T> class ValueFlow : public Flow<T, T> {
 
 	public:
 		ValueFlow() {}
-		ValueFlow(T x) { _value = x; };
+		ValueFlow(T x)  : Flow<T,T>(),_value(x) { };
 		void request() { this->emit(_value); }
 		void onNext(const T value) {
 			if (_emitOnChange && (_value != value)) {
@@ -186,7 +208,11 @@ template <class IN, class OUT> class LambdaFlow : public Flow<IN, OUT> {
 		LambdaFlow() {};
 		LambdaFlow(std::function<OUT(IN)> handler) : _handler(handler) {};
 		void handler(std::function<OUT(IN)> handler) { _handler = handler; };
-		void onNext(IN event) { _handler(event); };
+		void onNext(IN event) {
+			OUT out =_handler(event);
+			this->emit(out);
+		};
+		void request() {};
 };
 //______________________________________________________________________________
 //
@@ -232,15 +258,7 @@ template <class T> class Router : public Flow<T, T> {
 //
 class Thread;
 
-//______________________________________________________________________________
-//
-template <class T> class AsyncValueFlow : Flow<T, T> {
-		T _value;
 
-	public:
-		void onNext(T value) { _value = value; }
-		void request() { this->emit(_value); }
-};
 //______________________________________________________________________________
 //
 class AtomicSource : public Source<uint32_t> {
@@ -288,6 +306,7 @@ class TimerSource : public Source<TimerMsg> {
 		uint32_t _id;
 
 	public:
+		ValueFlow<bool> run=true;
 		TimerSource(int id, uint32_t interval, bool repeat) {
 			_id = id;
 			_interval = interval;
@@ -296,10 +315,11 @@ class TimerSource : public Source<TimerMsg> {
 		}
 		void interval(uint32_t i) { _interval = i; }
 		void request() {
-			if (Sys::millis() > _expireTime) {
-				_expireTime += _interval;
-				this->emit({_id});
-			}
+			if(run())
+				if (Sys::millis() > _expireTime) {
+					_expireTime += _interval;
+					this->emit({_id});
+				}
 		}
 		uint64_t expireTime() { return _expireTime; }
 };
@@ -323,7 +343,8 @@ class Thread {
 			for( auto requestable:_requestables) requestable->request();
 		}
 };
-#else
+#endif
+#ifdef FREERTOS
 
 class Thread {
 		std::vector<Requestable*> _requestables;
@@ -331,7 +352,7 @@ class Thread {
 		QueueHandle_t _workQueue=0;
 	public:
 		Thread() {
-			_workQueue = xQueueCreate( 10, sizeof( Requestable*) );
+			_workQueue = xQueueCreate( 20, sizeof( Requestable*) );
 		};
 		void awakeRequestable(Requestable* rq) {
 			if ( _workQueue )
@@ -371,16 +392,29 @@ class Thread {
 			}
 		}
 };
-#endif // ARDUINO vs FREERTOS
+#endif // FREERTOS
+
+//______________________________________________________________________________
+//
+template <class T> class AsyncValueFlow : Flow<T, T> {
+		T _value;
+
+	public:
+		void onNext(T value) {
+			_value = value;
+			if ( this->observerThread() )
+				this->observerThread()->awakeRequestable(this);
+		}
+		void request() { this->emit(_value); }
+
+};
 
 #ifdef FREERTOS
-
 
 template <class T> class AsyncFlow : public Flow<T, T> {
 		std::deque<T> _buffer;
 		uint32_t _queueDepth;
 		SemaphoreHandle_t xSemaphore = NULL;
-		Thread* _subscriberThread=0;
 
 	public:
 		AsyncFlow(uint32_t size) : _queueDepth(size) {
@@ -397,8 +431,8 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 				}
 				_buffer.push_back(event);
 				xSemaphoreGive(xSemaphore);
-				if ( _subscriberThread )
-					_subscriberThread->awakeRequestable(this);
+				if ( this->observerThread() )
+					this->observerThread()->awakeRequestable(this);
 				return;
 			} else {
 				WARN(" timeout on async buffer ! ");
@@ -415,7 +449,7 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 				}
 				_buffer.push_back(event);
 				xSemaphoreGive(xSemaphore);
-				if ( _subscriberThread) _subscriberThread->awakeRequestableFromIsr(this);
+				if ( this->observerThread()) this->observerThread()->awakeRequestableFromIsr(this);
 				return;
 			} else {
 				//           WARN(" timeout on async buffer ! "); // no log from ISR
@@ -440,9 +474,10 @@ template <class T> class AsyncFlow : public Flow<T, T> {
 			}
 		}
 
-		void subscribeOn(Thread& thread) {_subscriberThread=&thread;};
 };
-#else
+#endif
+
+#ifdef ARDUINO
 
 template <class T> class AsyncFlow : public Flow<T, T> {
 		std::deque<T> _buffer;

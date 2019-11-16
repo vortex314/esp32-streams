@@ -116,7 +116,6 @@ LedLight ledRight(23);
 
 ValueFlow<std::string> systemBuild  ;
 ValueFlow<std::string> systemHostname;
-//ValueFlow<bool> systemAlive=true;
 LambdaSource<uint32_t> systemHeap([]() {
 	return xPortGetFreeHeapSize();
 });
@@ -128,12 +127,12 @@ Poller slowPoller(5000);
 Poller fastPoller(10);
 Poller ticker(10);
 Thread mqttThread;
+Thread thisThread;
 
 extern "C" void app_main(void) {
 	Sys::hostname(S(HOSTNAME));
 	systemHostname = S(HOSTNAME);
 	systemBuild = __DATE__ " " __TIME__;
-//	systemAlive=true;
 
 	ticker.run = true;
 
@@ -155,10 +154,8 @@ extern "C" void app_main(void) {
 	mqtt.connected >> slowPoller.run;
 	mqtt.connected >> fastPoller.run;
 
-	mqtt.subscribeOn(mqttThread);
+	mqtt.observeOn(mqttThread);
 
-
-//	systemAlive >> mqtt.toTopic<bool>("system/alive");
 	systemHeap >> mqtt.toTopic<uint32_t>("system/heap");
 	systemUptime >> mqtt.toTopic<uint64_t>("system/upTime");
 	systemBuild >> mqtt.toTopic<std::string>("system/build");
@@ -178,7 +175,7 @@ extern "C" void app_main(void) {
 #endif
 
 #ifdef US
-//	ultrasonic.distance >> *new Throttle<int>(1000) >> mqtt.toTopic<int32_t>("us/distance");
+	ultrasonic.distance >> *new Throttle<int>(1000) >> mqtt.toTopic<int32_t>("us/distance");
 	fastPoller(ultrasonic.distance);
 	nonBlockingPool.add(ultrasonic);
 #endif

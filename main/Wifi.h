@@ -20,7 +20,7 @@ class Wifi {
 		uint8_t _mac[6];
 
 	public:
-		ValueFlow<bool> connected;
+		ValueFlow<bool> connected=false;
 		ValueFlow<int> rssi;
 		ValueFlow<std::string> ipAddress;
 		ValueFlow<std::string> ssid;

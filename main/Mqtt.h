@@ -135,7 +135,7 @@ class Mqtt : public Sink<TimerMsg>,public Flow<MqttMessage,MqttMessage> {
 			incoming >> *newSource;
 			return *newSource;
 		}
-		void subscribeOn(Thread& thread );
+		void observeOn(Thread& thread );
 
 };
 
