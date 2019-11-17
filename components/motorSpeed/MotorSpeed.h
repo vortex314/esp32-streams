@@ -18,7 +18,7 @@
 
 typedef enum { SIG_CAPTURED = 2 } Signal;
 
-class MotorSpeed : public Coroutine,LambdaSink<int32_t>
+class MotorSpeed
 {
 
     BTS7960 _bts7960;
@@ -35,8 +35,9 @@ class MotorSpeed : public Coroutine,LambdaSink<int32_t>
     float _currentLeft ;
     float _currentRight;
 //	    int _pwmSign = 1;
-    Timer _pulseTimer;
-    Timer _reportTimer;
+    TimerSource _pulseTimer;
+    TimerSource _reportTimer;
+    int _rpmMeasured;
 
 
 public:
@@ -44,7 +45,7 @@ public:
     ValueFlow<float> KP=0.1,KI=0.001,KD=0.0,output=0.0,error=0.0,rpmFiltered=0.0;
     ValueFlow<float> proportional=0.0,integral=0.0,derivative=0.0;
     ValueFlow<float> current=0.0;
-    ValueFlow<int> rpmMeasured=0;
+    AsyncValueFlow<int> rpmMeasured;
     ValueFlow<bool> keepGoing=true;
 
     MotorSpeed(Connector* connector);
@@ -52,6 +53,7 @@ public:
                uint32_t pinRightEnable, uint32_t pinLeftPwm,
                uint32_t pinRightPwm);
     ~MotorSpeed();
+    void observeOn(Thread& t);
 
     void calcTarget(float);
     float PID(float error, float interval);

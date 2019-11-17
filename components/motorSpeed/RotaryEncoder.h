@@ -19,7 +19,7 @@ typedef struct  {
     uint64_t time;
 } CaptureMsg;
 
-class RotaryEncoder : public Source<int32_t>
+class RotaryEncoder : public AsyncFlow<int32_t>
 {
     uint32_t _pinTachoA;
     DigitalIn& _dInTachoB;
@@ -40,10 +40,11 @@ class RotaryEncoder : public Source<int32_t>
     mcpwm_timer_t _timer_num;
     int32_t _samples[MAX_SAMPLES];
     uint32_t _indexSample = 0;
-    AsyncFlow<CaptureMsg> _captures;
 
 
 public:
+    AsyncFlow<CaptureMsg> _captures;
+
     ValueFlow<int32_t> rpm=0;
     ValueFlow<int32_t> direction=0;
 

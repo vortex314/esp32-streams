@@ -28,7 +28,7 @@ static mcpwm_dev_t* MCPWM[2] = {&MCPWM0, &MCPWM1};
 
 
 RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
-    : _pinTachoA(pinTachoA), _dInTachoB(DigitalIn::create(pinTachoB)),_captures(20)
+    : AsyncFlow(0),_pinTachoA(pinTachoA), _dInTachoB(DigitalIn::create(pinTachoB)),_captures(20)
 {
     _isrCounter = 0;
     _mcpwm_num=MCPWM_UNIT_0;
