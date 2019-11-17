@@ -61,8 +61,33 @@ public:
         return *this;
     }
 };
-//______________________________________________________________________
+// ___________________________________________________________________________
 //
+
+//____________________________________________________________________________
+//
+template <class T>
+class TimeoutFlow : public Flow<T,T>
+{
+    uint32_t _interval;
+    T _defaultValue;
+public:
+    TimerSource timeoutSource;
+    TimeoutFlow(uint32_t timeout,T defaultValue)  : timeoutSource(1,timeout,true),_defaultValue(defaultValue)
+    {
+        timeoutSource >> * new LambdaSink<TimerMsg>([&](TimerMsg tm) {
+            INFO("timeout fired");
+            this->emit(_defaultValue);
+        });
+    }
+    void onNext(T t)
+    {
+        this->emit(t);
+        timeoutSource.start();
+    };
+    void request() {};
+
+};
 
 #define PRO_CPU 0
 #define APP_CPU 1
@@ -98,7 +123,7 @@ UltraSonic ultrasonic(&uextUs);
 #include <RotaryEncoder.h>
 #include <MotorSpeed.h>
 Connector uextMotor(MOTOR);
-RotaryEncoder tacho(uextMotor.toPin(LP_SCL), uextMotor.toPin(LP_SDA));
+RotaryEncoder rotaryEncoder(uextMotor.toPin(LP_SCL), uextMotor.toPin(LP_SDA));
 MotorSpeed motor(&uextMotor);
 #endif
 
@@ -209,12 +234,13 @@ extern "C" void app_main(void)
 #endif
 
 #ifdef MOTOR
-    tacho.init();
-    tacho.observeOn(motorThread);
-    tacho._captures.observeOn(motorThread);
-    tacho >> *new Median<int, 11>()  >> motor.rpmMeasured;
+    rotaryEncoder.init();
+    rotaryEncoder.observeOn(motorThread);
+    rotaryEncoder._captures.observeOn(motorThread);
+    auto rotaryTimeout = new TimeoutFlow<int>(1000,0);
+    motorThread.addTimer(&(rotaryTimeout->timeoutSource));
+    rotaryEncoder >> *new Median<int, 11>()  >> *rotaryTimeout >> motor.rpmMeasured;
     motor.rpmMeasured >> mqtt.toTopic<int>("motor/rpmMeasured");
-    fastPoller(tacho);
 
     motor.output >> mqtt.toTopic<float>("motor/pwm");
     motor.integral >> mqtt.toTopic<float>("motor/I");
@@ -246,25 +272,29 @@ extern "C" void app_main(void)
     nonBlockingPool.setupAll();
 
     xTaskCreatePinnedToCore([](void*) {
+        INFO("motorThread started.");
+        motorThread.run();
+    }, "motorThread", 20000,NULL, 17, NULL, PRO_CPU);
+
+    xTaskCreatePinnedToCore([](void*) {
         while(true) {
             nonBlockingPool.loopAll();
-            vTaskDelay(1);
+            vTaskDelay(100);
         }
     }, "nonBlocking", 20000, NULL, 17, NULL, APP_CPU);
 
     xTaskCreatePinnedToCore([](void*) {
         while(true) {
             blockingPool.loopAll();
-            vTaskDelay(1);
+            vTaskDelay(100);
         }
     }, "blocking", 20000,NULL, 17, NULL, PRO_CPU);
 
     xTaskCreatePinnedToCore([](void*) {
+        INFO("mqttThread started.");
         mqttThread.run();
     }, "mqttThread", 20000,NULL, 17, NULL, PRO_CPU);
 
-    xTaskCreatePinnedToCore([](void*) {
-        motorThread.run();
-    }, "motorThread", 20000,NULL, 17, NULL, PRO_CPU);
+
 
 }

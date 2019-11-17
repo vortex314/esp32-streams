@@ -7,7 +7,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
                        uint32_t pinLeftEnable, uint32_t pinRightEnable,
                        uint32_t pinLeftPwm, uint32_t pinRightPwm)
     : _bts7960(pinLeftIS, pinRightIS, pinLeftEnable, pinRightEnable, pinLeftPwm,
-               pinRightPwm),_pulseTimer(1,5000,true),_reportTimer(2,100,true)
+               pinRightPwm),_pulseTimer(1,5000,true),_reportTimer(2,1000,true)
 
 {
     //_rpmMeasuredFilter = new AverageFilter<float>();

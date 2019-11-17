@@ -108,7 +108,7 @@ void RotaryEncoder::onNext(CaptureMsg cm)
 {
     _delta =cm.capture - _prevCapture;
     int32_t rpm = deltaToRpm(_delta,_direction);
-//    INFO(" rpm %d , delta %d , time %llu ",rpm,_delta,cm.time);
+    INFO(" rpm %d , delta %d , time %llu ",rpm,_delta,cm.time);
     _prevCapture = cm.capture;
     _prevCaptureTime = cm.time;
     emit(rpm);

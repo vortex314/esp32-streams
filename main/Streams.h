@@ -15,6 +15,7 @@
 #include "freertos/task.h"
 #include <freertos/semphr.h>
 #include <freertos/queue.h>
+
 #endif
 
 
@@ -78,7 +79,6 @@ public:
 template <class T> class Source : public Requestable
 {
     std::vector<void *> _observers;
-    Thread* _observerThread=0;
 
 protected:
     uint32_t size()
@@ -103,6 +103,13 @@ public:
             pObserver->onNext(t);
         }
     }
+
+};
+
+class Async
+{
+    Thread* _observerThread=0;
+public:
     void observeOn(Thread& thread)
     {
         _observerThread = &thread;
@@ -154,7 +161,6 @@ public:
 template <class IN, class INTERM, class OUT>
 Flow<IN, OUT> &operator>>(Flow<IN, INTERM> &flow1, Flow<INTERM, OUT> &flow2)
 {
-    INFO("Flow >> Flow ");
     Flow<IN,OUT>* cflow = new CompositeFlow<IN, INTERM,OUT>(flow1, flow2);
     flow1.subscribe(flow2);
     return *cflow;
@@ -163,7 +169,6 @@ Flow<IN, OUT> &operator>>(Flow<IN, INTERM> &flow1, Flow<INTERM, OUT> &flow2)
 template <class IN, class OUT>
 Sink<IN> &operator>>(Flow<IN, OUT> &flow, Sink<OUT> &sink)
 {
-    INFO("Flow >> Sink");
     flow.subscribe(sink);
     return flow;
 };
@@ -171,14 +176,12 @@ Sink<IN> &operator>>(Flow<IN, OUT> &flow, Sink<OUT> &sink)
 template <class IN, class OUT>
 Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> &flow)
 {
-    INFO("Source >> Flow");
     source.subscribe(flow);
     return flow;
 };
 
 template <class OUT> void operator>>(Source<OUT> &source, Sink<OUT> &sink)
 {
-    INFO("Source >> Sink");
     source.subscribe(sink);
 };
 
@@ -392,7 +395,16 @@ public:
         _id = id;
         _interval = interval;
         _repeat = repeat;
+        start();
+    }
+    void start()
+    {
+        run=true;
         _expireTime = Sys::millis() + _interval;
+    }
+    void stop()
+    {
+        run=false;
     }
     void interval(uint32_t i)
     {
@@ -401,14 +413,19 @@ public:
     void request()
     {
         if(run())
-            if (Sys::millis() > _expireTime) {
-                _expireTime += _interval;
+            if (Sys::millis() >= _expireTime) {
+                INFO("[%X]:%d:%llu timer emit ",this,interval(),expireTime());
+                _expireTime +=_interval;
                 this->emit({_id});
             }
     }
     uint64_t expireTime()
     {
         return _expireTime;
+    }
+    inline uint32_t interval()
+    {
+        return _interval;
     }
 };
 //______________________________________________________________________________
@@ -441,7 +458,6 @@ public:
 };
 #endif
 #ifdef FREERTOS
-
 class Thread
 {
     std::vector<Requestable*> _requestables;
@@ -463,7 +479,7 @@ public:
     {
         if ( _workQueue )
             if ( xQueueSendFromISR( _workQueue, & rq, ( TickType_t ) 0 )!=pdTRUE) {
-                //  WARN("queue overflow");
+                //  WARN("queue overflow"); // cannot log here concurency issue
             }
     };
     void addTimer(TimerSource* ts)
@@ -483,12 +499,21 @@ public:
                     expiredTimer = timer;
                 }
             }
-            if ( expTime < Sys::millis()) {
+            if ( expiredTimer && expTime < Sys::millis()) {
+                INFO("[%X]:%d  timer already expired ",expiredTimer,expiredTimer->interval());
+                uint64_t startTime=Sys::millis();
                 if( expiredTimer ) expiredTimer->request();
+//                INFO("[%X]:%d timer request took : %llu ",expiredTimer,expiredTimer->interval(),Sys::millis()-startTime);
             } else {
                 Requestable* prq;
-                if( xQueueReceive( _workQueue, &prq, ( TickType_t ) pdMS_TO_TICKS(expTime-Sys::millis()) ) ==pdTRUE) {
+                if( xQueueReceive( _workQueue, &prq, ( TickType_t ) pdMS_TO_TICKS(expTime-Sys::millis())+1 ) ==pdTRUE) {
                     prq->request();
+//                    INFO("executed request [%X]",prq);
+                } else {
+                    if( expiredTimer ) {
+//                        INFO("[%X]:%d:%llu timer request ",expiredTimer,expiredTimer->interval(),expiredTimer->expireTime());
+                        expiredTimer->request();
+                    }
                 }
             }
         }
@@ -498,7 +523,7 @@ public:
 
 //______________________________________________________________________________
 //
-template <class T> class AsyncValueFlow : public Flow<T, T>
+template <class T> class AsyncValueFlow : public Flow<T, T>,public Async
 {
     T _value;
 
@@ -518,7 +543,7 @@ public:
 
 #ifdef FREERTOS
 
-template <class T> class AsyncFlow : public Flow<T, T>
+template <class T> class AsyncFlow : public Flow<T, T>,public Async
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
@@ -592,7 +617,7 @@ public:
 
 #ifdef ARDUINO
 
-template <class T> class AsyncFlow : public Flow<T, T>
+template <class T> class AsyncFlow : public Flow<T, T>:public Async
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
