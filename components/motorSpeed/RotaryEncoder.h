@@ -14,11 +14,7 @@
 
 #define MAX_SAMPLES 5
 
-typedef struct  {
-    uint32_t capture;
-    uint64_t time;
-} CaptureMsg;
-
+ 
 class RotaryEncoder : public AsyncFlow<int32_t>
 {
     uint32_t _pinTachoA;
@@ -40,10 +36,11 @@ class RotaryEncoder : public AsyncFlow<int32_t>
     mcpwm_timer_t _timer_num;
     int32_t _samples[MAX_SAMPLES];
     uint32_t _indexSample = 0;
+	MovingAverage<uint32_t> _movingAverage;
 
 
 public:
-    AsyncFlow<CaptureMsg> _captures;
+    AsyncFlow<uint32_t> _captures;
 
     ValueFlow<int32_t> rpm=0;
     ValueFlow<int32_t> direction=0;
@@ -60,7 +57,7 @@ public:
     void setPwmUnit(uint32_t);
 
     void request();
-    void onNext(CaptureMsg);
+    void onNext(uint32_t);
 
 };
 

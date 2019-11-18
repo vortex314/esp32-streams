@@ -65,8 +65,8 @@ void MotorSpeed::setup()
 
 void MotorSpeed::observeOn(Thread& t)
 {
-    t.addTimer(&_reportTimer);
-    t.addTimer(&_pulseTimer);
+    _reportTimer.subscribeOn(t);
+    _pulseTimer.subscribeOn(t);
     rpmMeasured.observeOn(t);
 }
 

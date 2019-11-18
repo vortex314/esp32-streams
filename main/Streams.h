@@ -5,6 +5,7 @@
 #include <deque>
 #include <functional>
 #include <vector>
+#include <list>
 
 #ifdef ARDUINO
 #elif defined(__linux__)
@@ -314,6 +315,62 @@ public:
     }
 };
 
+template <class T>
+class MovingAverage :  public Flow<T,T> {
+	double _ratio;
+	std::list<T> _samples;
+	uint64_t _expTime;
+	uint32_t _interval;
+	uint32_t _sampleCount;
+	
+	
+	public:
+	MovingAverage(uint32_t samples,uint32_t timeout ){_sampleCount=samples;_interval=timeout;};
+	T average() {
+		T sum=0;
+		uint32_t count=_samples.size();
+		for(auto it=_samples.begin();it!=_samples.end();it++){
+			sum+=*it;
+		}
+		if ( count==0) count=1;
+		return sum/count;
+	}
+	void onNext(T value) {
+		if ( _samples.size() >_sampleCount ) _samples.pop_back();
+		_samples.push_front(value);
+		if ( Sys::millis() > _expTime ) {
+			_expTime+=_interval;
+			this->emit(average());
+		}
+	}
+	void request(){
+		this->emit(average());
+	}
+	
+};
+
+class ExponentialFilter :  public Flow<double,double> {
+	double _ratio;
+	double _lastValue;
+	uint64_t _expTime;
+	uint32_t _interval;
+	
+	
+	public:
+	ExponentialFilter(double ratio, uint32_t samples,uint32_t timeout ){};
+	void onNext(double value) {
+		_lastValue = ( 1- _ratio)*_lastValue + _ratio*value;
+		if ( Sys::millis() > _expTime ) {
+			_expTime+=_interval;
+			emit(_lastValue);
+		}
+	}
+	void request(){
+		emit(_lastValue);
+	}
+	
+};
+
 template <class T> class Router : public Flow<T, T>
 {
     uint32_t _idx;
@@ -329,7 +386,23 @@ public:
 };
 //______________________________________________________________________________
 //
-class Thread;
+class TimerSource;
+class Thread
+{
+    std::vector<Requestable*> _requestables;
+    std::vector<TimerSource*> _timers;
+#ifdef FREERTOS
+	    QueueHandle_t _workQueue=0;
+#endif
+
+public:
+    void addTimer(TimerSource* ts);
+    void addRequestable(Requestable& rq);
+    Thread();
+    void awakeRequestable(Requestable* rq) ;
+    void awakeRequestableFromIsr(Requestable* rq) ;
+    void run()   ;
+};
 
 
 //______________________________________________________________________________
@@ -381,7 +454,7 @@ public:
     uint32_t id;
 };
 
-class TimerSource : public Source<TimerMsg>
+class TimerSource : public Source<TimerMsg>, public Async
 {
     uint32_t _interval;
     bool _repeat;
@@ -427,99 +500,11 @@ public:
     {
         return _interval;
     }
+	void subscribeOn(Thread& thread){
+		thread.addTimer(this);
+	}
 };
-//______________________________________________________________________________
-//
-#ifdef ARDUINO
-class Thread
-{
-    std::vector<Requestable*> _requestables;
-    std::vector<TimerSource*> _timers;
 
-public:
-    void addTimer(TimerSource& ts)
-    {
-        _requestables.push_back(&ts);
-    };
-    void addRequestable(Requestable& rq)
-    {
-        _requestables.push_back(&rq);
-    };
-    Thread() {};
-
-    void awakeRequestable(Requestable& rq) { };
-    void awakeRequestableFromIsr(Requestable& rq) {};
-
-    void run()   // ARDUINO single thread version ==> continuous polling
-    {
-        for( auto timer:_timers) timer->request();
-        for( auto requestable:_requestables) requestable->request();
-    }
-};
-#endif
-#ifdef FREERTOS
-class Thread
-{
-    std::vector<Requestable*> _requestables;
-    std::vector<TimerSource*> _timers;
-    QueueHandle_t _workQueue=0;
-public:
-    Thread()
-    {
-        _workQueue = xQueueCreate( 20, sizeof( Requestable*) );
-    };
-    void awakeRequestable(Requestable* rq)
-    {
-        if ( _workQueue )
-            if ( xQueueSend( _workQueue, & rq, ( TickType_t ) 0 )!=pdTRUE) {
-                WARN(" queue overflow ");
-            }
-    };
-    void awakeRequestableFromIsr(Requestable* rq)
-    {
-        if ( _workQueue )
-            if ( xQueueSendFromISR( _workQueue, & rq, ( TickType_t ) 0 )!=pdTRUE) {
-                //  WARN("queue overflow"); // cannot log here concurency issue
-            }
-    };
-    void addTimer(TimerSource* ts)
-    {
-        _timers.push_back(ts);
-    }
-
-    void run()   // FREERTOS block thread until awake or timer expired.
-    {
-        while(true) {
-            uint64_t expTime=Sys::millis()+5000;
-            TimerSource* expiredTimer=0;
-
-            for( auto timer:_timers)  {
-                if ( timer->expireTime() < expTime) {
-                    expTime=timer->expireTime();
-                    expiredTimer = timer;
-                }
-            }
-            if ( expiredTimer && expTime < Sys::millis()) {
-                INFO("[%X]:%d  timer already expired ",expiredTimer,expiredTimer->interval());
-                uint64_t startTime=Sys::millis();
-                if( expiredTimer ) expiredTimer->request();
-//                INFO("[%X]:%d timer request took : %llu ",expiredTimer,expiredTimer->interval(),Sys::millis()-startTime);
-            } else {
-                Requestable* prq;
-                if( xQueueReceive( _workQueue, &prq, ( TickType_t ) pdMS_TO_TICKS(expTime-Sys::millis())+1 ) ==pdTRUE) {
-                    prq->request();
-//                    INFO("executed request [%X]",prq);
-                } else {
-                    if( expiredTimer ) {
-//                        INFO("[%X]:%d:%llu timer request ",expiredTimer,expiredTimer->interval(),expiredTimer->expireTime());
-                        expiredTimer->request();
-                    }
-                }
-            }
-        }
-    }
-};
-#endif // FREERTOS
 
 //______________________________________________________________________________
 //

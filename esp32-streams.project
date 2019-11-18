@@ -39,6 +39,7 @@
     </VirtualDirectory>
   </VirtualDirectory>
   <VirtualDirectory Name="main">
+    <File Name="main/MedianFilter.h"/>
     <File Name="main/Concept.cpp"/>
     <File Name="main/coroutine.cpp"/>
     <File Name="main/coroutine.h"/>

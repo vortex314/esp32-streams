@@ -238,7 +238,7 @@ extern "C" void app_main(void)
     rotaryEncoder.observeOn(motorThread);
     rotaryEncoder._captures.observeOn(motorThread);
     auto rotaryTimeout = new TimeoutFlow<int>(1000,0);
-    motorThread.addTimer(&(rotaryTimeout->timeoutSource));
+    rotaryTimeout->timeoutSource.subscribeOn(motorThread);
     rotaryEncoder >> *new Median<int, 11>()  >> *rotaryTimeout >> motor.rpmMeasured;
     motor.rpmMeasured >> mqtt.toTopic<int>("motor/rpmMeasured");
 
