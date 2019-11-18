@@ -602,7 +602,7 @@ public:
 
 #ifdef ARDUINO
 
-template <class T> class AsyncFlow : public Flow<T, T>:public Async
+template <class T> class AsyncFlow : public Flow<T, T>,public Async
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
