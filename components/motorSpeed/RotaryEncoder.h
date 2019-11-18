@@ -14,8 +14,8 @@
 
 #define MAX_SAMPLES 5
 
- 
-class RotaryEncoder : public AsyncFlow<int32_t>
+
+class RotaryEncoder : public ValueFlow<int32_t>
 {
     uint32_t _pinTachoA;
     DigitalIn& _dInTachoB;
@@ -36,12 +36,12 @@ class RotaryEncoder : public AsyncFlow<int32_t>
     mcpwm_timer_t _timer_num;
     int32_t _samples[MAX_SAMPLES];
     uint32_t _indexSample = 0;
-	MovingAverage<uint32_t> _movingAverage;
-
+    MovingAverage<uint32_t> _movingAverage;
+    ValueFlow<uint32_t> _rawCapture;
+    TimeoutFlow<int32_t> _timeoutFlow;
 
 public:
-    AsyncFlow<uint32_t> _captures;
-
+    AsyncFlow<uint32_t> captures;
     ValueFlow<int32_t> rpm=0;
     ValueFlow<int32_t> direction=0;
 
@@ -58,6 +58,7 @@ public:
 
     void request();
     void onNext(uint32_t);
+    void observeOn(Thread& t);
 
 };
 

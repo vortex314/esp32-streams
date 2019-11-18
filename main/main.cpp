@@ -66,28 +66,7 @@ public:
 
 //____________________________________________________________________________
 //
-template <class T>
-class TimeoutFlow : public Flow<T,T>
-{
-    uint32_t _interval;
-    T _defaultValue;
-public:
-    TimerSource timeoutSource;
-    TimeoutFlow(uint32_t timeout,T defaultValue)  : timeoutSource(1,timeout,true),_defaultValue(defaultValue)
-    {
-        timeoutSource >> * new LambdaSink<TimerMsg>([&](TimerMsg tm) {
-            INFO("timeout fired");
-            this->emit(_defaultValue);
-        });
-    }
-    void onNext(T t)
-    {
-        this->emit(t);
-        timeoutSource.start();
-    };
-    void request() {};
 
-};
 
 #define PRO_CPU 0
 #define APP_CPU 1
@@ -234,23 +213,21 @@ extern "C" void app_main(void)
 #endif
 
 #ifdef MOTOR
+    INFO(" init motor ");
     rotaryEncoder.init();
     rotaryEncoder.observeOn(motorThread);
-    rotaryEncoder._captures.observeOn(motorThread);
-    auto rotaryTimeout = new TimeoutFlow<int>(1000,0);
-    rotaryTimeout->timeoutSource.subscribeOn(motorThread);
-    rotaryEncoder >> *new Median<int, 11>()  >> *rotaryTimeout >> motor.rpmMeasured;
-    motor.rpmMeasured >> mqtt.toTopic<int>("motor/rpmMeasured");
+    rotaryEncoder.rpm >> motor.rpmMeasured;
+    rotaryEncoder.rpm >> mqtt.toTopic<int>("motor/rpmMeasured");
 
-    motor.output >> mqtt.toTopic<float>("motor/pwm");
-    motor.integral >> mqtt.toTopic<float>("motor/I");
-    motor.derivative >> mqtt.toTopic<float>("motor/D");
-    motor.proportional >> mqtt.toTopic<float>("motor/P");
-    motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
-    mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
+    /*    motor.output >> mqtt.toTopic<float>("motor/pwm");
+        motor.integral >> mqtt.toTopic<float>("motor/I");
+        motor.derivative >> mqtt.toTopic<float>("motor/D");
+        motor.proportional >> mqtt.toTopic<float>("motor/P");
+        motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
+        mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
 
-    motor.setup();
-    motor.observeOn(motorThread);
+        motor.setup();
+        motor.observeOn(motorThread);*/
 
     /*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
            servo.integral >> mqtt.toTopic<float>("servo/I");

@@ -315,61 +315,7 @@ public:
     }
 };
 
-template <class T>
-class MovingAverage :  public Flow<T,T> {
-	double _ratio;
-	std::list<T> _samples;
-	uint64_t _expTime;
-	uint32_t _interval;
-	uint32_t _sampleCount;
-	
-	
-	public:
-	MovingAverage(uint32_t samples,uint32_t timeout ){_sampleCount=samples;_interval=timeout;};
-	T average() {
-		T sum=0;
-		uint32_t count=_samples.size();
-		for(auto it=_samples.begin();it!=_samples.end();it++){
-			sum+=*it;
-		}
-		if ( count==0) count=1;
-		return sum/count;
-	}
-	void onNext(T value) {
-		if ( _samples.size() >_sampleCount ) _samples.pop_back();
-		_samples.push_front(value);
-		if ( Sys::millis() > _expTime ) {
-			_expTime+=_interval;
-			this->emit(average());
-		}
-	}
-	void request(){
-		this->emit(average());
-	}
-	
-};
 
-class ExponentialFilter :  public Flow<double,double> {
-	double _ratio;
-	double _lastValue;
-	uint64_t _expTime;
-	uint32_t _interval;
-	
-	
-	public:
-	ExponentialFilter(double ratio, uint32_t samples,uint32_t timeout ){};
-	void onNext(double value) {
-		_lastValue = ( 1- _ratio)*_lastValue + _ratio*value;
-		if ( Sys::millis() > _expTime ) {
-			_expTime+=_interval;
-			emit(_lastValue);
-		}
-	}
-	void request(){
-		emit(_lastValue);
-	}
-	
-};
 
 template <class T> class Router : public Flow<T, T>
 {
@@ -392,7 +338,7 @@ class Thread
     std::vector<Requestable*> _requestables;
     std::vector<TimerSource*> _timers;
 #ifdef FREERTOS
-	    QueueHandle_t _workQueue=0;
+    QueueHandle_t _workQueue=0;
 #endif
 
 public:
@@ -487,7 +433,7 @@ public:
     {
         if(run())
             if (Sys::millis() >= _expireTime) {
-                INFO("[%X]:%d:%llu timer emit ",this,interval(),expireTime());
+//                INFO("[%X]:%d:%llu timer emit ",this,interval(),expireTime());
                 _expireTime +=_interval;
                 this->emit({_id});
             }
@@ -500,9 +446,10 @@ public:
     {
         return _interval;
     }
-	void subscribeOn(Thread& thread){
-		thread.addTimer(this);
-	}
+    void subscribeOn(Thread& thread)
+    {
+        thread.addTimer(this);
+    }
 };
 
 
@@ -602,7 +549,7 @@ public:
 
 #ifdef ARDUINO
 
-template <class T> class AsyncFlow : public Flow<T, T>:public Async
+template <class T> class AsyncFlow : public Flow<T, T>,public Async
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
@@ -647,5 +594,99 @@ public:
 
 };
 #endif
+
+template <class T>
+class MovingAverage :  public Flow<T,T>
+{
+    double _ratio;
+    std::list<T> _samples;
+    uint64_t _expTime;
+    uint32_t _interval;
+    uint32_t _sampleCount;
+
+
+public:
+    MovingAverage(uint32_t samples,uint32_t timeout )
+    {
+        _sampleCount=samples;
+        _interval=timeout;
+    };
+    T average()
+    {
+        T sum=0;
+        uint32_t count=_samples.size();
+        for(auto it=_samples.begin(); it!=_samples.end(); it++) {
+            sum+=*it;
+        }
+        if ( count==0) count=1;
+        return sum/count;
+    }
+    void onNext(T value)
+    {
+        if ( _samples.size() >_sampleCount ) _samples.pop_back();
+        _samples.push_front(value);
+        if ( Sys::millis() > _expTime ) {
+            INFO(" >>>> average %d ",average());
+            _expTime+=_interval;
+            this->emit(average());
+        }
+    }
+    void request()
+    {
+        this->emit(average());
+    }
+
+};
+
+class ExponentialFilter :  public Flow<double,double>
+{
+    double _ratio;
+    double _lastValue;
+    uint64_t _expTime;
+    uint32_t _interval;
+
+
+public:
+    ExponentialFilter(double ratio, uint32_t samples,uint32_t timeout ) {};
+    void onNext(double value)
+    {
+        _lastValue = ( 1- _ratio)*_lastValue + _ratio*value;
+        if ( Sys::millis() > _expTime ) {
+            _expTime+=_interval;
+            emit(_lastValue);
+        }
+    }
+    void request()
+    {
+        emit(_lastValue);
+    }
+
+};
+
+template <class T>
+class TimeoutFlow : public Flow<T,T>,public Async
+{
+    uint32_t _interval;
+    T _defaultValue;
+public:
+    TimerSource timeoutSource;
+    TimeoutFlow(uint32_t timeout,T defaultValue)  : _defaultValue(defaultValue),timeoutSource(1,timeout,true)
+    {
+        timeoutSource >> * new LambdaSink<TimerMsg>([&](TimerMsg tm) {
+            this->emit(_defaultValue);
+        });
+    }
+    void onNext(T t)
+    {
+        this->emit(t);
+        timeoutSource.start();
+    };
+    void request() {};
+    void subscribeOn(Thread& t)
+    {
+        timeoutSource.subscribeOn(t);
+    }
+
+};
 
 #endif // STREAMS_H

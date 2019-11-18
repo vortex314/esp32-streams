@@ -28,13 +28,27 @@ static mcpwm_dev_t* MCPWM[2] = {&MCPWM0, &MCPWM1};
 
 
 RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
-    : AsyncFlow(0),_pinTachoA(pinTachoA), _dInTachoB(DigitalIn::create(pinTachoB)),_movingAverage(5,100),_captures(20)
+    : _pinTachoA(pinTachoA),
+      _dInTachoB(DigitalIn::create(pinTachoB)),
+      _movingAverage(5,100),
+      _timeoutFlow(100,0),
+      captures(20)
 {
     _isrCounter = 0;
     _mcpwm_num=MCPWM_UNIT_0;
     _timer_num=MCPWM_TIMER_0;
-    _captures >> _movingAverage >> * new LambdaSink<uint32_t>([=](uint32_t m) {
-        onNext(m);
+    _rawCapture >> _movingAverage >> captures;
+    captures >> *new LambdaFlow<uint32_t,int32_t>([&](uint32_t capture) {
+        {
+            _delta =capture - _prevCapture;
+            int32_t rpm = deltaToRpm(_delta,_direction);
+            INFO(" rpm %d , delta %d ",rpm,_delta,time);
+            _prevCapture = capture;
+            return rpm;
+        }
+    }) >> _timeoutFlow >> rpm;
+    _rawCapture >> *new LambdaSink<uint32_t>([&](uint32_t capture) {
+        INFO(" average %u",capture);
     });
 }
 
@@ -99,23 +113,20 @@ RotaryEncoder::isrHandler(void* pv) // ATTENTION no float calculations in ISR
         uint32_t capt = mcpwm_capture_signal_get_value(
                             re->_mcpwm_num,
                             MCPWM_SELECT_CAP0); // get capture signal counter value
-        re->_captures.onNext(capt);
+        re->_rawCapture.onNext(capt);
     }
     MCPWM[re->_mcpwm_num]->int_clr.val = mcpwm_intr_status;
 }
 
-void RotaryEncoder::onNext(uint32_t capture)
+void RotaryEncoder::observeOn(Thread& t)
 {
-    _delta =capture - _prevCapture;
-    int32_t rpm = deltaToRpm(_delta,_direction);
-    INFO(" rpm %d , delta %d ",rpm,_delta,time);
-    _prevCapture = capture;
-    emit(rpm);
+    _timeoutFlow.subscribeOn(t);
+    captures.observeOn(t);
 }
 
 void RotaryEncoder::request()
 {
-    _captures.request();
+    captures.request();
 }
 
 
