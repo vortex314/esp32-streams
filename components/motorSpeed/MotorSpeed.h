@@ -37,15 +37,16 @@ class MotorSpeed
 //	    int _pwmSign = 1;
     TimerSource _pulseTimer;
     TimerSource _reportTimer;
+    TimerSource _controlTimer;
     int _rpmMeasured;
 
 
 public:
     ValueFlow<int> rpmTarget=40;
-    ValueFlow<float> KP=0.1,KI=0.001,KD=0.0,output=0.0,error=0.0,rpmFiltered=0.0;
+    ValueFlow<float> KP=1,KI=0.01,KD=0.0,output=0.0,error=0.0,rpmFiltered=0.0;
     ValueFlow<float> proportional=0.0,integral=0.0,derivative=0.0;
     ValueFlow<float> current=0.0;
-    AsyncValueFlow<int> rpmMeasured;
+    ValueFlow<int> rpmMeasured;
     ValueFlow<bool> keepGoing=true;
 
     MotorSpeed(Connector* connector);
@@ -60,7 +61,7 @@ public:
 
 
     void round(float& f, float resol);
-    void setup();
+    void init();
     void loop();
     void pulse();
 

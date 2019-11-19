@@ -7,7 +7,10 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
                        uint32_t pinLeftEnable, uint32_t pinRightEnable,
                        uint32_t pinLeftPwm, uint32_t pinRightPwm)
     : _bts7960(pinLeftIS, pinRightIS, pinLeftEnable, pinRightEnable, pinLeftPwm,
-               pinRightPwm),_pulseTimer(1,5000,true),_reportTimer(2,1000,true)
+               pinRightPwm),
+      _pulseTimer(1,5000,true), // change steps each 5 sec
+      _reportTimer(2,500,true), // to MQTT and display 1/sec
+      _controlTimer(3,100,true) // PID per 100 msec
 
 {
     //_rpmMeasuredFilter = new AverageFilter<float>();
@@ -33,11 +36,12 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     });
 
     _pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
-        INFO("TIMER pulse");
+        INFO("next pulse");
         pulse();
     });
 
-    rpmMeasured >> *new LambdaSink<int>([&](int rpm) {
+    auto pidCalc = new LambdaSink<int>([&](int rpm) {
+        INFO(" pid rpm %d ",rpm);
         _rpmMeasured = rpm;
         static float newOutput;
         error = rpmTarget() - rpm;
@@ -49,6 +53,13 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
         output = newOutput;
         _bts7960.setOutput(output());
     });
+
+    rpmMeasured >> *pidCalc ;
+    rpmMeasured.emitOnChange(false);
+    _controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tick) {
+        rpmMeasured.request();
+    });
+
 }
 
 MotorSpeed::MotorSpeed(Connector* uext)
@@ -58,16 +69,16 @@ MotorSpeed::MotorSpeed(Connector* uext)
 
 MotorSpeed::~MotorSpeed() {}
 
-void MotorSpeed::setup()
+void MotorSpeed::init()
 {
     if (_bts7960.initialize()) WARN(" initialize motor failed ");
 }
 
 void MotorSpeed::observeOn(Thread& t)
 {
-    _reportTimer.subscribeOn(t);
-    _pulseTimer.subscribeOn(t);
-    rpmMeasured.observeOn(t);
+    _reportTimer.observeOn(t);
+    _pulseTimer.observeOn(t);
+    _controlTimer.observeOn(t);
 }
 
 

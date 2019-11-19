@@ -10,14 +10,15 @@ class LedBlinker : public Sink<TimerMsg>
     uint32_t _pin;
     bool _on;
 
-  public:
+public:
     LambdaSink<bool> blinkSlow;
     TimerSource blinkTimer;
 
     LedBlinker(uint32_t pin, uint32_t delay);
-    void setup();
+    void init();
     void delay(uint32_t d);
     void onNext(TimerMsg);
+    void observeOn(Thread& t);
 };
 
 #endif // LEDBLINKER_H

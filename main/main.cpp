@@ -159,10 +159,7 @@ extern "C" void app_main(void)
     systemHostname=hn;
 #endif
     mqtt.init();
-
-    wifi.connected.emitOnChange(true);
-    mqtt.connected.emitOnChange(true);
-
+    led.init();
     wifi.connected >> mqtt.wifiConnected;
 
     mqtt.connected >> led.blinkSlow;
@@ -170,6 +167,7 @@ extern "C" void app_main(void)
     mqtt.connected >> fastPoller.run;
 
     mqtt.observeOn(mqttThread);
+    led.observeOn(mqttThread);
 
     systemHeap >> mqtt.toTopic<uint32_t>("system/heap");
     systemUptime >> mqtt.toTopic<uint64_t>("system/upTime");
@@ -181,10 +179,8 @@ extern "C" void app_main(void)
     wifi.macAddress >> mqtt.toTopic<std::string>("wifi/mac");
 
     slowPoller(systemHeap)(systemUptime)(systemBuild)(systemHostname)(wifi.ipAddress)(wifi.rssi)(wifi.ssid)(wifi.macAddress);
-    led.setup();
-    ticker( led.blinkTimer);
-    ticker(mqtt);
-	
+
+
 #ifdef GPS
     gps >> mqtt.outgoing;
     nonBlockingPool.add(gps);
@@ -217,18 +213,18 @@ extern "C" void app_main(void)
     INFO(" init motor ");
     rotaryEncoder.init();
     rotaryEncoder.observeOn(motorThread);
-    rotaryEncoder.rpm >> motor.rpmMeasured;
-    rotaryEncoder.rpm >> mqtt.toTopic<int>("motor/rpmMeasured");
+    rotaryEncoder.rpmMeasured >> motor.rpmMeasured;
+    rotaryEncoder.rpmMeasured >> mqtt.toTopic<int>("motor/rpmMeasured");
 
-    /*    motor.output >> mqtt.toTopic<float>("motor/pwm");
-        motor.integral >> mqtt.toTopic<float>("motor/I");
-        motor.derivative >> mqtt.toTopic<float>("motor/D");
-        motor.proportional >> mqtt.toTopic<float>("motor/P");
-        motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
-        mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
+    motor.init();
+    motor.output >> mqtt.toTopic<float>("motor/pwm");
+    motor.integral >> mqtt.toTopic<float>("motor/I");
+    motor.derivative >> mqtt.toTopic<float>("motor/D");
+    motor.proportional >> mqtt.toTopic<float>("motor/P");
+    motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
+    mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
 
-        motor.setup();
-        motor.observeOn(motorThread);*/
+    motor.observeOn(motorThread);
 
     /*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
            servo.integral >> mqtt.toTopic<float>("servo/I");

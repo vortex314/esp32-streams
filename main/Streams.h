@@ -194,7 +194,7 @@ template <class OUT> void operator>>(Source<OUT> &source, Sink<OUT> &sink)
 template <class T> class ValueFlow : public Flow<T, T>
 {
     T _value;
-    bool _emitOnChange = false;
+    bool _emitOnChange = true;
 
 public:
     ValueFlow() {}
@@ -277,7 +277,7 @@ public:
     void request() {};
 };
 //__________________________________________________________________________`
-// 
+//
 // filter values on comparison
 // if value equals filter condition it's emitted
 //
@@ -298,8 +298,8 @@ public:
     }
 };
 //__________________________________________________________________________`
-// 
-// MedianFilter : calculates median of N samples 
+//
+// MedianFilter : calculates median of N samples
 // it will only emit after enough samples
 // x : number of samples
 //
@@ -326,8 +326,8 @@ public:
 };
 
 //__________________________________________________________________________`
-// 
-// Router : uses round robin to ditribute values to consumers 
+//
+// Router : uses round robin to ditribute values to consumers
 // can be used as load-balancing or sequential invocation
 //
 //__________________________________________________________________________
@@ -366,7 +366,7 @@ public:
 };
 
 //__________________________________________________________________________`
-// 
+//
 // Atomic Source : emit sequential counter independent of concurrency
 //
 //__________________________________________________________________________
@@ -388,7 +388,7 @@ public:
     }
 };
 //__________________________________________________________________________`
-// 
+//
 // Throttle : limits the number of emits per second
 // it compares the new and old value, if it didn't change it's not forwarded
 // delta : after which time the value is forwarded
@@ -417,12 +417,12 @@ public:
     void request() {};
 };
 //__________________________________________________________________________`
-// 
-// TimerSource 
+//
+// TimerSource
 // id : the timer id send with the timer expiration
 // interval : time after which the timer expires
 // repeat : repetitive timer
-//	
+//
 // run : sink bool to stop or run timer
 //	start : restart timer from now+interval
 //__________________________________________________________________________
@@ -482,11 +482,15 @@ public:
     {
         thread.addTimer(this);
     }
+    void observeOn(Thread& thread)
+    {
+        thread.addTimer(this);
+    }
 };
 //__________________________________________________________________________`
-// 
+//
 // single value async passed across threads
-// 
+//
 //
 //__________________________________________________________________________
 
@@ -508,10 +512,10 @@ public:
 
 };
 //__________________________________________________________________________`
-// 
-// Buffered flow , to connect 2 threads 
+//
+// Buffered flow , to connect 2 threads
 // size : max number of values buffered
-// 
+//
 //
 //__________________________________________________________________________
 #ifdef FREERTOS
@@ -522,13 +526,15 @@ template <class T> class AsyncFlow : public Flow<T, T>,public Async
     uint32_t _queueDepth;
     SemaphoreHandle_t xSemaphore = NULL;
 
-	public:
-	LambdaSink<T> fromIsr;
+public:
+    LambdaSink<T> fromIsr;
     AsyncFlow(uint32_t size) : _queueDepth(size)
     {
         xSemaphore = xSemaphoreCreateBinary();
         xSemaphoreGive(xSemaphore);
-		fromIsr.handler([&](T value){ onNextFromIsr(value);});
+        fromIsr.handler([&](T value) {
+            onNextFromIsr(value);
+        });
     }
     void onNext(T event)
     {
@@ -597,12 +603,15 @@ template <class T> class AsyncFlow : public Flow<T, T>,public Async
     std::deque<T> _buffer;
     uint32_t _queueDepth;
 
-	public:
-	LambdaSink<T> fromIsr;
+public:
+    LambdaSink<T> fromIsr;
 
-    AsyncFlow(uint32_t size) : _queueDepth(size) {
-		fromIsr.handler([&](T value){ onNextFromIsr(value);});
-		}
+    AsyncFlow(uint32_t size) : _queueDepth(size)
+    {
+        fromIsr.handler([&](T value) {
+            onNextFromIsr(value);
+        });
+    }
     void onNext(T event)
     {
         noInterrupts();
@@ -642,8 +651,8 @@ template <class T> class AsyncFlow : public Flow<T, T>,public Async
 };
 #endif
 //__________________________________________________________________________`
-// 
-// calculates moving average 
+//
+// calculates moving average
 // samples : number of samples on which average is calculated
 // timeout : after which time the value is forwarded
 //
@@ -679,8 +688,7 @@ public:
         if ( _samples.size() >_sampleCount ) _samples.pop_back();
         _samples.push_front(value);
         if ( Sys::millis() > _expTime ) {
-            INFO(" >>>> average %d ",average());
-            _expTime+=_interval;
+            _expTime=Sys::millis()+_interval;
             this->emit(average());
         }
     }
@@ -691,7 +699,7 @@ public:
 
 };
 //__________________________________________________________________________`
-// 
+//
 // filter doubles with previous values
 // ratio : 0...1 value to indicate percentage of new value is taken
 // timeout : after which time the value is forwarded
@@ -708,9 +716,10 @@ class ExponentialFilter :  public Flow<double,double>
 
 
 public:
-    ExponentialFilter(double ratio, uint32_t samples,uint32_t timeout ) {
-		_expTime = Sys::millis() + _interval;
-		};
+    ExponentialFilter(double ratio, uint32_t samples,uint32_t timeout )
+    {
+        _expTime = Sys::millis() + _interval;
+    };
     void onNext(double value)
     {
         _lastValue = ( 1- _ratio)*_lastValue + _ratio*value;
@@ -726,9 +735,9 @@ public:
 
 };
 //__________________________________________________________________________`
-// 
+//
 // emits defaultValue if no new value arrived within timeout
-// defaultValue : value pushed 
+// defaultValue : value pushed
 // timeout : after which time the value is forwarded, if no other arrive
 //
 //__________________________________________________________________________

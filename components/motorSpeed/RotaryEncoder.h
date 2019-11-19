@@ -14,8 +14,7 @@
 
 #define MAX_SAMPLES 5
 
-
-class RotaryEncoder 
+class RotaryEncoder
 {
     uint32_t _pinTachoA;
     DigitalIn& _dInTachoB;
@@ -36,13 +35,13 @@ class RotaryEncoder
     mcpwm_timer_t _timer_num;
     int32_t _samples[MAX_SAMPLES];
     uint32_t _indexSample = 0;
-    MovingAverage<uint32_t> _movingAverage;
-    ValueFlow<uint32_t> _rawCapture;
+    MovingAverage<int32_t> _movingAverage;
+    ValueFlow<int32_t> _rawCapture;
     TimeoutFlow<int32_t> _timeoutFlow;
-    AsyncFlow<uint32_t> _captures;
+    AsyncFlow<int32_t> _captures;
 
 public:
-    ValueFlow<int32_t> rpm=0;
+    ValueFlow<int32_t> rpmMeasured=0;
 
     RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB);
     ~RotaryEncoder();

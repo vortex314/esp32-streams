@@ -62,7 +62,7 @@ void Thread::run() // FREERTOS block thread until awake or timer expired.
             }
         }
         if(expiredTimer && expTime < Sys::millis()) {
-            INFO("[%X]:%d:%llu  timer already expired ", expiredTimer, expiredTimer->interval(),expiredTimer->expireTime());
+//            INFO("[%X]:%d:%llu  timer already expired ", expiredTimer, expiredTimer->interval(),expiredTimer->expireTime());
             uint64_t startTime = Sys::millis();
             if(expiredTimer) expiredTimer->request();
             //                INFO("[%X]:%d timer request took : %llu
