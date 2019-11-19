@@ -597,8 +597,12 @@ template <class T> class AsyncFlow : public Flow<T, T>,public Async
     std::deque<T> _buffer;
     uint32_t _queueDepth;
 
-public:
-    AsyncFlow(uint32_t size) : _queueDepth(size) {}
+	public:
+	LambdaSink<T> fromIsr;
+
+    AsyncFlow(uint32_t size) : _queueDepth(size) {
+		fromIsr.handler([&](T value){ onNextFromIsr(value);});
+		}
     void onNext(T event)
     {
         noInterrupts();
