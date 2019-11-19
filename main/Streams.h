@@ -276,8 +276,12 @@ public:
     };
     void request() {};
 };
-//______________________________________________________________________________
+//__________________________________________________________________________`
+// 
+// filter values on comparison
+// if value equals filter condition it's emitted
 //
+//__________________________________________________________________________
 template <class T> class Filter : public Flow<T, T>
 {
     T _value;
@@ -293,7 +297,13 @@ public:
             this->emit(in);
     }
 };
-
+//__________________________________________________________________________`
+// 
+// MedianFilter : calculates median of N samples 
+// it will only emit after enough samples
+// x : number of samples
+//
+//__________________________________________________________________________
 #include <MedianFilter.h>
 
 template <class T, int x> class Median : public Flow<T, T>
@@ -315,7 +325,12 @@ public:
     }
 };
 
-
+//__________________________________________________________________________`
+// 
+// Router : uses round robin to ditribute values to consumers 
+// can be used as load-balancing or sequential invocation
+//
+//__________________________________________________________________________
 
 template <class T> class Router : public Flow<T, T>
 {
@@ -350,9 +365,11 @@ public:
     void run()   ;
 };
 
-
-//______________________________________________________________________________
+//__________________________________________________________________________`
+// 
+// Atomic Source : emit sequential counter independent of concurrency
 //
+//__________________________________________________________________________
 class AtomicSource : public Source<uint32_t>
 {
     std::atomic<uint32_t> _atom;
@@ -370,6 +387,13 @@ public:
         }
     }
 };
+//__________________________________________________________________________`
+// 
+// Throttle : limits the number of emits per second
+// it compares the new and old value, if it didn't change it's not forwarded
+// delta : after which time the value is forwarded
+//
+//__________________________________________________________________________
 template <class T>
 class Throttle : public Flow<T,T>
 {
@@ -392,8 +416,16 @@ public:
     }
     void request() {};
 };
-//______________________________________________________________________________
-//
+//__________________________________________________________________________`
+// 
+// TimerSource 
+// id : the timer id send with the timer expiration
+// interval : time after which the timer expires
+// repeat : repetitive timer
+//	
+// run : sink bool to stop or run timer
+//	start : restart timer from now+interval
+//__________________________________________________________________________
 class TimerMsg
 {
 public:
@@ -451,10 +483,13 @@ public:
         thread.addTimer(this);
     }
 };
-
-
-//______________________________________________________________________________
+//__________________________________________________________________________`
+// 
+// single value async passed across threads
+// 
 //
+//__________________________________________________________________________
+
 template <class T> class AsyncValueFlow : public Flow<T, T>,public Async
 {
     T _value;
@@ -472,7 +507,13 @@ public:
     }
 
 };
-
+//__________________________________________________________________________`
+// 
+// Buffered flow , to connect 2 threads 
+// size : max number of values buffered
+// 
+//
+//__________________________________________________________________________
 #ifdef FREERTOS
 
 template <class T> class AsyncFlow : public Flow<T, T>,public Async
@@ -481,11 +522,13 @@ template <class T> class AsyncFlow : public Flow<T, T>,public Async
     uint32_t _queueDepth;
     SemaphoreHandle_t xSemaphore = NULL;
 
-public:
+	public:
+	LambdaSink<T> fromIsr;
     AsyncFlow(uint32_t size) : _queueDepth(size)
     {
         xSemaphore = xSemaphoreCreateBinary();
         xSemaphoreGive(xSemaphore);
+		fromIsr.handler([&](T value){ onNextFromIsr(value);});
     }
     void onNext(T event)
     {
@@ -594,7 +637,13 @@ public:
 
 };
 #endif
-
+//__________________________________________________________________________`
+// 
+// calculates moving average 
+// samples : number of samples on which average is calculated
+// timeout : after which time the value is forwarded
+//
+//__________________________________________________________________________
 template <class T>
 class MovingAverage :  public Flow<T,T>
 {
@@ -618,7 +667,7 @@ public:
         for(auto it=_samples.begin(); it!=_samples.end(); it++) {
             sum+=*it;
         }
-        if ( count==0) count=1;
+        if ( count==0) return 0;
         return sum/count;
     }
     void onNext(T value)
@@ -637,6 +686,14 @@ public:
     }
 
 };
+//__________________________________________________________________________`
+// 
+// filter doubles with previous values
+// ratio : 0...1 value to indicate percentage of new value is taken
+// timeout : after which time the value is forwarded
+//
+//__________________________________________________________________________
+
 
 class ExponentialFilter :  public Flow<double,double>
 {
@@ -647,7 +704,9 @@ class ExponentialFilter :  public Flow<double,double>
 
 
 public:
-    ExponentialFilter(double ratio, uint32_t samples,uint32_t timeout ) {};
+    ExponentialFilter(double ratio, uint32_t samples,uint32_t timeout ) {
+		_expTime = Sys::millis() + _interval;
+		};
     void onNext(double value)
     {
         _lastValue = ( 1- _ratio)*_lastValue + _ratio*value;
@@ -662,7 +721,13 @@ public:
     }
 
 };
-
+//__________________________________________________________________________`
+// 
+// emits defaultValue if no new value arrived within timeout
+// defaultValue : value pushed 
+// timeout : after which time the value is forwarded, if no other arrive
+//
+//__________________________________________________________________________
 template <class T>
 class TimeoutFlow : public Flow<T,T>,public Async
 {

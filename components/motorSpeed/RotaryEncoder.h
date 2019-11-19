@@ -15,7 +15,7 @@
 #define MAX_SAMPLES 5
 
 
-class RotaryEncoder : public ValueFlow<int32_t>
+class RotaryEncoder 
 {
     uint32_t _pinTachoA;
     DigitalIn& _dInTachoB;
@@ -39,25 +39,18 @@ class RotaryEncoder : public ValueFlow<int32_t>
     MovingAverage<uint32_t> _movingAverage;
     ValueFlow<uint32_t> _rawCapture;
     TimeoutFlow<int32_t> _timeoutFlow;
+    AsyncFlow<uint32_t> _captures;
 
 public:
-    AsyncFlow<uint32_t> captures;
     ValueFlow<int32_t> rpm=0;
-    ValueFlow<int32_t> direction=0;
 
     RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB);
     ~RotaryEncoder();
     void init();
-    Erc initialize();
-    static void onRaise(void*);
     static void isrHandler(void*);
     int32_t deltaToRpm(uint32_t delta, int32_t direction);
 
-    int32_t calcRpm();
     void setPwmUnit(uint32_t);
-
-    void request();
-    void onNext(uint32_t);
     void observeOn(Thread& t);
 
 };

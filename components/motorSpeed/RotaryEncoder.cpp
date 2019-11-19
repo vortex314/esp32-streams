@@ -32,13 +32,17 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
       _dInTachoB(DigitalIn::create(pinTachoB)),
       _movingAverage(5,100),
       _timeoutFlow(100,0),
-      captures(20)
+      _captures(20)
 {
     _isrCounter = 0;
     _mcpwm_num=MCPWM_UNIT_0;
     _timer_num=MCPWM_TIMER_0;
-    _rawCapture >> _movingAverage >> captures;
-    captures >> *new LambdaFlow<uint32_t,int32_t>([&](uint32_t capture) {
+	
+    _rawCapture >> _movingAverage >> _captures.fromIsr;
+    _rawCapture >> *new LambdaSink<uint32_t>([&](uint32_t capture) {
+        INFO(" average %u",capture);		
+    });    
+	_captures >> *new LambdaFlow<uint32_t,int32_t>([&](uint32_t capture) {
         {
             _delta =capture - _prevCapture;
             int32_t rpm = deltaToRpm(_delta,_direction);
@@ -47,9 +51,7 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
             return rpm;
         }
     }) >> _timeoutFlow >> rpm;
-    _rawCapture >> *new LambdaSink<uint32_t>([&](uint32_t capture) {
-        INFO(" average %u",capture);
-    });
+
 }
 
 RotaryEncoder::~RotaryEncoder() {}
@@ -75,14 +77,12 @@ void RotaryEncoder::init()
     esp_err_t rc;
     rc = mcpwm_gpio_init(_mcpwm_num, MCPWM_CAP_0, _pinTachoA);
     if ( rc !=ESP_OK) {
-        WARN("mcpwm_gpio_init()=%d");
+        WARN("mcpwm_gpio_init()=%d",rc);
     }
 
     rc = mcpwm_capture_enable(_mcpwm_num, MCPWM_SELECT_CAP0, MCPWM_NEG_EDGE,
                               CAPTURE_DIVIDER);
-    if ( rc !=ESP_OK) {
-        WARN("mcpwm_capture_enable()=%d");
-    }
+    if ( rc !=ESP_OK) { WARN("mcpwm_capture_enable()=%d",rc); }
     MCPWM[_mcpwm_num]->int_ena.val = CAP0_INT_EN;
     // Set ISR Handler
     rc = mcpwm_isr_register(_mcpwm_num, isrHandler, this, ESP_INTR_FLAG_IRAM,
@@ -96,7 +96,7 @@ void RotaryEncoder::init()
 const uint32_t weight = 10;
 
 void IRAM_ATTR
-RotaryEncoder::isrHandler(void* pv) // ATTENTION no float calculations in ISR
+RotaryEncoder::isrHandler(void* pv) // ATTENTION !!! no float calculations in ISR
 {
     RotaryEncoder* re = (RotaryEncoder*)pv;
     uint32_t mcpwm_intr_status;
@@ -121,12 +121,7 @@ RotaryEncoder::isrHandler(void* pv) // ATTENTION no float calculations in ISR
 void RotaryEncoder::observeOn(Thread& t)
 {
     _timeoutFlow.subscribeOn(t);
-    captures.observeOn(t);
-}
-
-void RotaryEncoder::request()
-{
-    captures.request();
+    _captures.observeOn(t);
 }
 
 
@@ -134,6 +129,6 @@ int32_t RotaryEncoder::deltaToRpm(uint32_t delta, int32_t direction)
 {
     float t = (60.0 * CAPTURE_FREQ * CAPTURE_DIVIDER) /
               (delta * PULSE_PER_ROTATION);
-    int32_t rpm = ((int32_t)t) * _direction;
+    int32_t rpm = ((int32_t)t) * direction;
     return rpm;
 }
