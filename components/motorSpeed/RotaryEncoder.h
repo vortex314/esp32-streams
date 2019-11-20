@@ -35,10 +35,10 @@ class RotaryEncoder
     mcpwm_timer_t _timer_num;
     int32_t _samples[MAX_SAMPLES];
     uint32_t _indexSample = 0;
-    MovingAverage<int32_t> _movingAverage;
-    ValueFlow<int32_t> _rawCapture;
+    MovingAverage<uint32_t> _averageCapture;
+    ValueFlow<uint32_t> _rawCapture;
     TimeoutFlow<int32_t> _timeoutFlow;
-    AsyncFlow<int32_t> _captures;
+    AsyncFlow<uint32_t> _captures;
 
 public:
     ValueFlow<int32_t> rpmMeasured=0;

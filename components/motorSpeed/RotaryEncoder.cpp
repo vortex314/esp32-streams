@@ -44,7 +44,7 @@ RotaryEncoder::isrHandler(void* pv) // ATTENTION !!! no float calculations in IS
         uint32_t capt = mcpwm_capture_signal_get_value(
                             re->_mcpwm_num,
                             MCPWM_SELECT_CAP0); // get capture signal counter value
-        re->_rawCapture.onNext(capt * re->_direction);
+        re->_rawCapture.onNext(capt );
     }
     MCPWM[re->_mcpwm_num]->int_clr.val = mcpwm_intr_status;
 }
@@ -52,7 +52,7 @@ RotaryEncoder::isrHandler(void* pv) // ATTENTION !!! no float calculations in IS
 RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     : _pinTachoA(pinTachoA),
       _dInTachoB(DigitalIn::create(pinTachoB)),
-      _movingAverage(5,100), // smoothen measurements
+      _averageCapture(5,100), // smoothen measurements
       _timeoutFlow(100,0), // if no rpm measurement, suppose 0 as no capture
       _captures(20) // bufer from ISR to user time
 {
@@ -60,13 +60,15 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     _mcpwm_num=MCPWM_UNIT_0;
     _timer_num=MCPWM_TIMER_0;
 
-    _rawCapture >> _movingAverage >> _captures.fromIsr;
-    _captures >> *new LambdaFlow<int32_t,int32_t>([&](int32_t capture) {
+    _rawCapture >> _averageCapture >> _captures.fromIsr;
+    _captures >> *new LambdaFlow<uint32_t,int32_t>([&](uint32_t capture) {
         {
-            int32_t delta =abs(abs(capture) - _prevCapture);
-            int32_t rpm = deltaToRpm(delta,capture < 0 ? -1 : 1);
-            INFO(" rpm %ld , delta : %ld , capt : %ld , prev : %ld ",rpm,delta,abs(capture),_prevCapture);
-            _prevCapture = abs(capture);
+            uint32_t delta;
+			if ( capture > _prevCapture ) delta = capture - _prevCapture;
+			else delta = UINT32_MAX- _prevCapture + capture;
+            int32_t rpm = deltaToRpm(delta,_direction);
+            INFO(" rpm %ld , delta : %lu , capt : %lu , prev : %lu ",rpm,delta,capture,_prevCapture);
+            _prevCapture =capture;
             return rpm;
         }
     }) >> _timeoutFlow >> rpmMeasured;
