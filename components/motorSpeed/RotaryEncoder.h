@@ -14,16 +14,28 @@
 
 #define MAX_SAMPLES 5
 
+class CaptureMsg
+{
+  public:
+    uint32_t capture;
+    int32_t direction;
+    uint64_t timestamp;
+	bool operator!=(const CaptureMsg& cm){
+		return true;
+	}
+};
+
 class RotaryEncoder
 {
     uint32_t _pinTachoA;
     DigitalIn& _dInTachoB;
     uint32_t _pinTachoB;
 
-    uint32_t _capture;
+    //    uint32_t _capture;
     uint32_t _prevCapture;
     uint64_t _captureTime;
     uint64_t _prevCaptureTime;
+	int32_t _prevRpm;
     uint32_t _delta;
     uint32_t _deltaPrev;
     uint32_t _captureInterval;
@@ -36,12 +48,12 @@ class RotaryEncoder
     int32_t _samples[MAX_SAMPLES];
     uint32_t _indexSample = 0;
     MovingAverage<uint32_t> _averageCapture;
-    ValueFlow<uint32_t> _rawCapture;
+    ValueFlow<CaptureMsg> _rawCapture;
     TimeoutFlow<int32_t> _timeoutFlow;
-    AsyncFlow<uint32_t> _captures;
+    AsyncFlow<CaptureMsg> _captures;
 
-public:
-    ValueFlow<int32_t> rpmMeasured=0;
+  public:
+    ValueFlow<int32_t> rpmMeasured = 0;
 
     RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB);
     ~RotaryEncoder();
@@ -51,7 +63,6 @@ public:
 
     void setPwmUnit(uint32_t);
     void observeOn(Thread& t);
-
 };
 
 #endif // ROTARYENCODER_H

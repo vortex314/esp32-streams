@@ -44,7 +44,7 @@ RotaryEncoder::isrHandler(void* pv) // ATTENTION !!! no float calculations in IS
         uint32_t capt = mcpwm_capture_signal_get_value(
                             re->_mcpwm_num,
                             MCPWM_SELECT_CAP0); // get capture signal counter value
-        re->_rawCapture.onNext(capt );
+        re->_rawCapture.onNext({capt,re->_direction,Sys::millis()} );
     }
     MCPWM[re->_mcpwm_num]->int_clr.val = mcpwm_intr_status;
 }
@@ -59,16 +59,19 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     _isrCounter = 0;
     _mcpwm_num=MCPWM_UNIT_0;
     _timer_num=MCPWM_TIMER_0;
-
-    _rawCapture >> _averageCapture >> _captures.fromIsr;
-    _captures >> *new LambdaFlow<uint32_t,int32_t>([&](uint32_t capture) {
+	auto throttle = new Throttle<CaptureMsg>(100);
+	
+    _rawCapture >> *throttle >> _captures.fromIsr;
+    _captures >> *new LambdaFlow<CaptureMsg,int32_t>([&](CaptureMsg msg) {
         {
+			if ( msg.timestamp > ( Sys::millis()+1000 )) return _prevRpm;
             uint32_t delta;
-			if ( capture > _prevCapture ) delta = capture - _prevCapture;
-			else delta = UINT32_MAX- _prevCapture + capture;
-            int32_t rpm = deltaToRpm(delta,_direction);
-            INFO(" rpm %ld , delta : %lu , capt : %lu , prev : %lu ",rpm,delta,capture,_prevCapture);
-            _prevCapture =capture;
+			if ( msg.capture > _prevCapture ) delta = msg.capture - _prevCapture;
+			else delta = UINT32_MAX- _prevCapture + msg.capture;
+            int32_t rpm = deltaToRpm(delta,msg.direction);
+            INFO(" rpm %ld , delta : %lu , capt : %lu , prev : %lu ",rpm,delta,msg.capture,_prevCapture);
+            _prevCapture =msg.capture;
+			_prevRpm = rpm;
             return rpm;
         }
     }) >> _timeoutFlow >> rpmMeasured;

@@ -1,6 +1,6 @@
 #include "MotorSpeed.h"
 
-#define CONTROL_INTERVAL_MS 10
+#define CONTROL_INTERVAL_MS 100
 
 
 MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
@@ -10,7 +10,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
                pinRightPwm),
       _pulseTimer(1,5000,true), // change steps each 5 sec
       _reportTimer(2,500,true), // to MQTT and display 1/sec
-      _controlTimer(3,100,true) // PID per 100 msec
+      _controlTimer(3,CONTROL_INTERVAL_MS,true) // PID per 100 msec
 
 {
     //_rpmMeasuredFilter = new AverageFilter<float>();
@@ -107,7 +107,7 @@ float MotorSpeed::PID(float err, float interval)
     float integralPart = KI() * integral();
     if ( integralPart > 30 ) integral =30.0 / KI();
     if ( integralPart < -30.0 ) integral =-30.0 / KI();
-    float output = KP() * err + integralPart + KD() * derivative() + bias;
+    float output = KP() * err + KI()*integral() + KD() * derivative() + bias;
     _errorPrior = err;
     return output;
 }
