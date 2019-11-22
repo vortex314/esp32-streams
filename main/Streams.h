@@ -59,7 +59,7 @@ public:
 template <class T> class Observer
 {
 public:
-    virtual void onNext(const T) = 0;
+    virtual void onNext(const T&) = 0;
 };
 template <class IN> class Sink : public Observer<IN>
 {
@@ -97,7 +97,7 @@ public:
         _observers.push_back((void *)&observer);
     }
 
-    void emit(const T t)
+    void emit(const T& t)
     {
         for (void *pv : _observers) {
             Observer<T> *pObserver = static_cast<Observer<T> *>(pv);
@@ -148,7 +148,7 @@ public:
     {
         _in.request();
     };
-    void onNext(const IN in)
+    void onNext(const IN& in)
     {
         _in.onNext(in);
     }
@@ -203,7 +203,7 @@ public:
     {
         this->emit(_value);
     }
-    void onNext(const T value)
+    void onNext(const T& value)
     {
         if (_emitOnChange && (_value != value)) {
             this->emit(value);
@@ -236,7 +236,7 @@ public:
     {
         _handler = handler;
     };
-    void onNext(T event)
+    void onNext(const T& event)
     {
         _handler(event);
     };
@@ -269,7 +269,7 @@ public:
     {
         _handler = handler;
     };
-    void onNext(IN event)
+    void onNext(const IN& event)
     {
         OUT out =_handler(event);
         this->emit(out);
@@ -291,7 +291,7 @@ public:
     {
         _value = value;
     }
-    void onNext(T in)
+    void onNext(T& in)
     {
         if (in == _value)
             this->emit(in);
@@ -312,7 +312,7 @@ template <class T, int x> class Median : public Flow<T, T>
 
 public:
     Median() {};
-    void onNext(T value)
+    void onNext(T& value)
     {
         _mf.addSample(value);
         if (_mf.isReady()) {
@@ -337,7 +337,7 @@ template <class T> class Router : public Flow<T, T>
     uint32_t _idx;
 
 public:
-    void onNext(T t)
+    void onNext(T& t)
     {
         _idx++;
         if (_idx > this->size())
@@ -405,7 +405,7 @@ public:
     {
         _delta = delta;
     }
-    void onNext(T value)
+    void onNext(const T& value)
     {
         uint64_t now=Sys::millis();
         if ( (_lastValue != value) || ( now > _nextEmit)) {
@@ -499,7 +499,7 @@ template <class T> class AsyncValueFlow : public Flow<T, T>,public Async
     T _value;
 
 	public:
-    void onNext(T value)
+    void onNext(T& value)
     {
         _value = value;
         if ( this->observerThread() )
@@ -536,7 +536,7 @@ public:
             onNextFromIsr(value);
         });
     }
-    void onNext(T event)
+    void onNext(const T& event)
     {
         if (xSemaphoreTake(xSemaphore, (TickType_t)10) == pdTRUE) {
             if (_buffer.size() >= _queueDepth) {
@@ -554,7 +554,7 @@ public:
             WARN(" timeout on async buffer ! ");
         }
     }
-    void onNextFromIsr(T event)
+    void onNextFromIsr(T& event)
     {
         BaseType_t higherPriorityTaskWoken;
         if (xSemaphoreTakeFromISR(xSemaphore, &higherPriorityTaskWoken) == pdTRUE) {
@@ -612,7 +612,7 @@ public:
             onNextFromIsr(value);
         });
     }
-    void onNext(T event)
+    void onNext(T& event)
     {
         noInterrupts();
         if (_buffer.size() >= _queueDepth) {
@@ -624,7 +624,7 @@ public:
         interrupts();
     }
 
-    void onNextFromIsr(T event)
+    void onNextFromIsr(T& event)
     {
         if (_buffer.size() >= _queueDepth) {
             _buffer.pop_front();
@@ -683,7 +683,7 @@ public:
         if ( count==0) return 0;
         return sum/count;
     }
-    void onNext(T value)
+    void onNext(const T& value)
     {
         if ( _samples.size() >_sampleCount ) _samples.pop_back();
         _samples.push_front(value);
@@ -720,7 +720,7 @@ public:
     {
         _expTime = Sys::millis() + _interval;
     };
-    void onNext(double value)
+    void onNext(double& value)
     {
         _lastValue = ( 1- _ratio)*_lastValue + _ratio*value;
         if ( Sys::millis() > _expTime ) {
@@ -754,7 +754,7 @@ public:
             this->emit(_defaultValue);
         });
     }
-    void onNext(T t)
+    void onNext(const T& t)
     {
         this->emit(t);
         timeoutSource.start();

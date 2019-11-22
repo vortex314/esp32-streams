@@ -21,7 +21,7 @@ void LedBlinker::init()
     io_conf.pull_up_en = (gpio_pullup_t)1;
     gpio_config(&io_conf);
 }
-void LedBlinker::onNext(TimerMsg m)
+void LedBlinker::onNext(const TimerMsg& m)
 {
     gpio_set_level((gpio_num_t)_pin, _on ? 1 : 0 );
 //	INFO("let's blink");

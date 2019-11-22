@@ -90,7 +90,7 @@ void Mqtt::observeOn(Thread& t)
 //________________________________________________________________________
 //
 
-void Mqtt::onNext(MqttMessage m)
+void Mqtt::onNext(const MqttMessage& m)
 {
     if(connected()) {
         std::string topic = _hostPrefix;
@@ -100,7 +100,7 @@ void Mqtt::onNext(MqttMessage m)
 }
 //________________________________________________________________________
 //
-void Mqtt::onNext(TimerMsg tm)
+void Mqtt::onNext(const TimerMsg& tm)
 {
     if(tm.id == TIMER_KEEP_ALIVE && connected() ) {
         onNext({_lwt_topic.c_str(), "true"});

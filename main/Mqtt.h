@@ -43,7 +43,7 @@ class ToMqtt : public Flow<T, MqttMessage> {
 
 	public:
 		ToMqtt(std::string name) : _name(name) {};
-		void onNext(T event) {
+		void onNext(const T& event) {
 			std::string s;
 			DynamicJsonDocument doc(100);
 			JsonVariant variant = doc.to<JsonVariant>();
@@ -65,7 +65,7 @@ class FromMqtt : public Flow<MqttMessage, T> {
 
 	public:
 		FromMqtt(std::string name) : _name(name) {};
-		void onNext(MqttMessage mqttMessage) {
+		void onNext(const MqttMessage& mqttMessage) {
 			if (mqttMessage.topic != _name) {
 				return;
 			}
@@ -122,8 +122,8 @@ class Mqtt : public Sink<TimerMsg>,public Flow<MqttMessage,MqttMessage> {
 		bool handleMqttMessage(const char *message);
 		static int mqtt_event_handler( esp_mqtt_event_t* event);
 
-		void onNext(TimerMsg);
-		void onNext(MqttMessage);
+		void onNext(const TimerMsg&);
+		void onNext(const MqttMessage&);
 		void request();
 		template <class T>
 		Sink<T>& toTopic(const char* name) {

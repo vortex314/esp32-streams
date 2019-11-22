@@ -62,14 +62,14 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
 	auto throttle = new Throttle<CaptureMsg>(100);
 	
     _rawCapture >> *throttle >> _captures.fromIsr;
-    _captures >> *new LambdaFlow<CaptureMsg,int32_t>([&](CaptureMsg msg) {
+    _captures >> *new LambdaFlow<CaptureMsg,int32_t>([&](const CaptureMsg& msg) {
         {
 			if ( msg.timestamp > ( Sys::millis()+1000 )) return _prevRpm;
             uint32_t delta;
 			if ( msg.capture > _prevCapture ) delta = msg.capture - _prevCapture;
 			else delta = UINT32_MAX- _prevCapture + msg.capture;
             int32_t rpm = deltaToRpm(delta,msg.direction);
-            INFO(" rpm %ld , delta : %lu , capt : %lu , prev : %lu ",rpm,delta,msg.capture,_prevCapture);
+            INFO(" rpm %ld , delta : %lu , capt : %lu , prev : %lu time : %llu",rpm,delta,msg.capture,_prevCapture,msg.timestamp);
             _prevCapture =msg.capture;
 			_prevRpm = rpm;
             return rpm;

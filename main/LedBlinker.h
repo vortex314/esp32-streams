@@ -17,7 +17,7 @@ public:
     LedBlinker(uint32_t pin, uint32_t delay);
     void init();
     void delay(uint32_t d);
-    void onNext(TimerMsg);
+    void onNext(const TimerMsg&);
     void observeOn(Thread& t);
 };
 
