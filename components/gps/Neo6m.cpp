@@ -1,7 +1,7 @@
 #include "Neo6m.h"
 
 Neo6m::Neo6m(Connector* connector)
-	: Coroutine("NEO-6M"),_connector(connector),_uart(connector->getUART()) {
+	: _connector(connector),_uart(connector->getUART()) {
 }
 
 Neo6m::~Neo6m() {
@@ -15,7 +15,7 @@ std::string stringify(std::string in) {
 }
 
 
-void Neo6m::setup() {
+void Neo6m::init() {
 	_uart.setClock(9600);
 	_uart.onRxd(onRxd,this);
 	_uart.init();
@@ -25,9 +25,6 @@ void Neo6m::request() {
 	WARN(" data will be send async");
 }
 
-
-void Neo6m::loop() {
-}
 
 void Neo6m::onRxd(void* me) {
 	((Neo6m*) me)->handleRxd();

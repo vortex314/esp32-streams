@@ -1,15 +1,14 @@
 #include "LedBlinker.h"
 
 
-LedBlinker::LedBlinker(uint32_t pin, uint32_t delay) : blinkTimer(1,delay,true)
+LedBlinker::LedBlinker(uint32_t pin, uint32_t delay) : TimerSource(1,delay,true)
 {
     _pin = pin;
-    blinkTimer.interval(delay);
     blinkSlow.handler([=](bool flag) {
-        if ( flag ) blinkTimer.interval(500);
-        else blinkTimer.interval(100);
+        if ( flag ) interval(500);
+        else interval(100);
     });
-    blinkTimer >> *this;
+    *this >> *this; // consume my own TimerMsg
 }
 void LedBlinker::init()
 {
@@ -29,11 +28,7 @@ void LedBlinker::onNext(const TimerMsg& m)
 }
 void LedBlinker::delay(uint32_t d)
 {
-    blinkTimer.interval(d);
+    interval(d);
 }
 
 
-void LedBlinker::observeOn(Thread& t)
-{
-    blinkTimer.observeOn(t);
-}

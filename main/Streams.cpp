@@ -2,16 +2,29 @@
 
 //______________________________________________________________________________
 //
-#ifdef ARDUINO
+TimerSource& Thread::operator|(TimerSource& ts){
+	addTimer(&ts);
+	return ts;
+}
 
-void Thread::addTimer(TimerSource& ts)
+Requestable& Thread::operator|(Requestable& rq){
+	addRequestable(rq);
+	return rq;
+}
+
+void Thread::addTimer(TimerSource* ts)
 {
-    _requestables.push_back(&ts);
-};
+    _timers.push_back(ts);
+}
+
 void Thread::addRequestable(Requestable& rq)
 {
     _requestables.push_back(&rq);
 };
+
+#ifdef ARDUINO
+
+
 Thread::Thread() {};
 
 void Thread::awakeRequestable(Requestable& rq) {};
@@ -44,10 +57,7 @@ void Thread::awakeRequestableFromIsr(Requestable* rq)
             //  WARN("queue overflow"); // cannot log here concurency issue
         }
 };
-void Thread::addTimer(TimerSource* ts)
-{
-    _timers.push_back(ts);
-}
+
 
 void Thread::run() // FREERTOS block thread until awake or timer expired.
 {

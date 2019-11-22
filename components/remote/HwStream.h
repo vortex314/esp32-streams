@@ -15,42 +15,37 @@ class LedLight : public Sink<bool>
 {
     DigitalOut& _dOut;
 
-public:
+  public:
     LedLight(int pin)
         : _dOut(DigitalOut::create(pin))
     {
     }
     void init()
     {
-        _dOut.init();
-        _dOut.write(1);
+	_dOut.init();
+	_dOut.write(1);
     };
-    void onNext(bool b)
-    {
-        _dOut.write(b ? 0 : 1);
-    }
+    void onNext(const bool& b) { _dOut.write(b ? 0 : 1); }
 };
 //______________________________________________________________________________________
 //
-class Pot : public Source<int>
+class Pot : public Source<int>, public Sink<TimerMsg>
 {
     ADC& _adc;
     float _value;
 
-public:
+  public:
+    TimerSource timer;
     Pot(PhysicalPin pin)
         : _adc(ADC::create(pin))
+        , timer(1, 100, true)
     {
+	timer >> *this;
     }
-    ~Pot() {};
-    void init()
-    {
-        _adc.init();
-    };
-    void request()
-    {
-        emit(_adc.getValue());
-    }
+    ~Pot(){};
+    void init() { _adc.init(); };
+    void onNext(const TimerMsg& tm) { emit(_adc.getValue()); }
+    void request(){};
 };
 //______________________________________________________________________________________
 //
@@ -58,20 +53,23 @@ class Button : public Source<bool>
 {
     DigitalIn& _dIn;
 
-public:
+  public:
     Button(int pin)
         : _dIn(DigitalIn::create(pin))
     {
     }
+    static void onChange(void* pv)
+    {
+	Button* me = (Button*)pv;
+	me->request();
+    }
     void init()
     {
-        _dIn.setMode(DigitalIn::DIN_PULL_UP);
-        _dIn.init();
+	_dIn.setMode(DigitalIn::DIN_PULL_UP);
+	_dIn.onChange(DigitalIn::DIN_CHANGE, onChange, this);
+	_dIn.init();
     };
-    void request()
-    {
-        emit(_dIn.read() == 0);
-    }
+    void request() { emit(_dIn.read() == 0); }
 };
 //______________________________________________________________________________________
 //

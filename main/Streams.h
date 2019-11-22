@@ -181,9 +181,10 @@ Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> &flow)
     return flow;
 };
 
-template <class OUT> void operator>>(Source<OUT> &source, Sink<OUT> &sink)
+template <class OUT> Requestable& operator>>(Source<OUT> &source, Sink<OUT> &sink)
 {
     source.subscribe(sink);
+	return source;
 };
 
 //______________________________________________________________________________
@@ -312,7 +313,7 @@ template <class T, int x> class Median : public Flow<T, T>
 
 public:
     Median() {};
-    void onNext(T& value)
+    void onNext(const T& value)
     {
         _mf.addSample(value);
         if (_mf.isReady()) {
@@ -363,6 +364,8 @@ public:
     void awakeRequestable(Requestable* rq) ;
     void awakeRequestableFromIsr(Requestable* rq) ;
     void run()   ;
+	TimerSource& operator|(TimerSource& ts);
+	Requestable& operator|(Requestable& af);
 };
 
 //__________________________________________________________________________`
@@ -554,7 +557,7 @@ public:
             WARN(" timeout on async buffer ! ");
         }
     }
-    void onNextFromIsr(T& event)
+    void onNextFromIsr(T& event) // ATTENTION !! no logging from Isr
     {
         BaseType_t higherPriorityTaskWoken;
         if (xSemaphoreTakeFromISR(xSemaphore, &higherPriorityTaskWoken) == pdTRUE) {

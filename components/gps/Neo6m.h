@@ -3,10 +3,9 @@
 #include <Hardware.h>
 #include <Log.h>
 #include <Streams.h>
-#include <coroutine.h>
 #include <Mqtt.h>
 
-class Neo6m : public Coroutine,public Source<MqttMessage> {
+class Neo6m : public Source<MqttMessage> {
 		Connector* _connector;
 		UART& _uart;
 		static void onRxd(void*);
@@ -14,8 +13,7 @@ class Neo6m : public Coroutine,public Source<MqttMessage> {
 	public:
 		Neo6m(Connector* connector);
 		virtual ~Neo6m();
-		void setup();
-		void loop();
+		void init();
 		void handleRxd();
 		void request();
 };

@@ -13,52 +13,49 @@ class Wait : public Flow<T, T>
     uint64_t _last;
     uint32_t _delay;
 
-public:
+  public:
     Wait(uint32_t delay)
         : _delay(delay)
     {
     }
     void onNext(T value)
     {
-        uint32_t delta = Sys::millis() - _last;
-        if(delta > _delay) {
-            this->emit(value);
-        }
-        _last = Sys::millis();
+	uint32_t delta = Sys::millis() - _last;
+	if(delta > _delay) {
+	    this->emit(value);
+	}
+	_last = Sys::millis();
     }
 };
 //______________________________________________________________________
 //
-class Poller : public Coroutine
+class Poller : public TimerSource, public Sink<TimerMsg>
 {
     std::vector<Requestable*> _requestables;
-    uint32_t _interval;
-    uint32_t _idx=0;
-public:
-    ValueFlow<bool> run=false;
-    Poller(uint32_t interval):Coroutine("publisher"),_interval(interval) {};
-    void setup()
+    uint32_t _idx = 0;
+
+  public:
+    ValueFlow<bool> run = false;
+    Poller(uint32_t iv)
+        : TimerSource(1, 100, true)
     {
-        timeout(_interval);
+	interval(iv);
+	*this >> *this;
     };
-    void loop()
+
+    void onNext(const TimerMsg& tm)
     {
-        PT_BEGIN();
-        while(true) {
-            PT_YIELD_UNTIL(timeout());
-            _idx++;
-            if ( _idx >= _requestables.size()) _idx=0;
-            if ( _requestables.size() && run() ) {
-                _requestables[_idx]->request();
-            }
-            timeout(_interval/(_requestables.size()+1));
-        }
-        PT_END();
+	_idx++;
+	if(_idx >= _requestables.size()) _idx = 0;
+	if(_requestables.size() && run()) {
+	    _requestables[_idx]->request();
+	}
     }
+
     Poller& operator()(Requestable& rq)
     {
-        _requestables.push_back(&rq);
-        return *this;
+	_requestables.push_back(&rq);
+	return *this;
     }
 };
 // ___________________________________________________________________________
@@ -67,10 +64,8 @@ public:
 //____________________________________________________________________________
 //
 
-
 #define PRO_CPU 0
 #define APP_CPU 1
-
 
 //______________________________________________________________________
 //
@@ -78,8 +73,6 @@ public:
 #define PIN_LED 2
 
 LedBlinker led(PIN_LED, 100);
-
-CoroutinePool blockingPool, nonBlockingPool;
 
 Wifi wifi;
 Mqtt mqtt;
@@ -96,7 +89,6 @@ Neo6m gps(&uextGps);
 Connector uextUs(US);
 UltraSonic ultrasonic(&uextUs);
 #endif
-
 
 #ifdef MOTOR
 #include <RotaryEncoder.h>
@@ -124,21 +116,12 @@ LedLight ledLeft(32);
 LedLight ledRight(23);
 #endif
 
-
-ValueFlow<std::string> systemBuild  ;
+ValueFlow<std::string> systemBuild;
 ValueFlow<std::string> systemHostname;
-LambdaSource<uint32_t> systemHeap([]()
-{
-    return xPortGetFreeHeapSize();
-});
-LambdaSource<uint64_t> systemUptime([]( )
-{
-    return Sys::millis();
-});
+LambdaSource<uint32_t> systemHeap([]() { return xPortGetFreeHeapSize(); });
+LambdaSource<uint64_t> systemUptime([]() { return Sys::millis(); });
 
 Poller slowPoller(5000);
-Poller fastPoller(100);
-Poller ticker(10);
 Thread mqttThread;
 Thread thisThread;
 Thread motorThread;
@@ -149,25 +132,23 @@ extern "C" void app_main(void)
     systemHostname = S(HOSTNAME);
     systemBuild = __DATE__ " " __TIME__;
 
-    ticker.run = true;
-
     wifi.init();
 #ifndef HOSTNAME
     std::string hn;
-    string_format(hn,"ESP32-%d",wifi.mac() & 0xFFFF);
+    string_format(hn, "ESP32-%d", wifi.mac() & 0xFFFF);
     Sys::hostname(hn.c_str());
-    systemHostname=hn;
+    systemHostname = hn;
 #endif
     mqtt.init();
     led.init();
     wifi.connected >> mqtt.wifiConnected;
-
     mqtt.connected >> led.blinkSlow;
-    mqtt.connected >> slowPoller.run;
-    mqtt.connected >> fastPoller.run;
+
+    mqttThread | mqtt;
+    mqttThread | led;
+    mqttThread | slowPoller;
 
     mqtt.observeOn(mqttThread);
-    led.observeOn(mqttThread);
 
     systemHeap >> mqtt.toTopic<uint32_t>("system/heap");
     systemUptime >> mqtt.toTopic<uint64_t>("system/upTime");
@@ -178,18 +159,19 @@ extern "C" void app_main(void)
     wifi.ssid >> mqtt.toTopic<std::string>("wifi/ssid");
     wifi.macAddress >> mqtt.toTopic<std::string>("wifi/mac");
 
-    slowPoller(systemHeap)(systemUptime)(systemBuild)(systemHostname)(wifi.ipAddress)(wifi.rssi)(wifi.ssid)(wifi.macAddress);
-
+    slowPoller(systemHeap)(systemUptime)(systemBuild)(systemHostname)(wifi.ipAddress)(wifi.rssi)(wifi.ssid)(
+        wifi.macAddress);
 
 #ifdef GPS
-    gps >> mqtt.outgoing;
-    nonBlockingPool.add(gps);
+    gps.init(); // no thread , driven from interrupt
+    gps >> mqtt.outgoing.fromIsr;
 #endif
 
 #ifdef US
-    ultrasonic.distance >> *new Throttle<int>(1000) >> mqtt.toTopic<int32_t>("us/distance");
-    fastPoller(ultrasonic.distance);
-    nonBlockingPool.add(ultrasonic);
+    ultrasonic.init();
+    ultrasonic.interval(200);
+    thisThread | ultrasonic;
+    ultrasonic.distance >> mqtt.toTopic<int32_t>("us/distance");
 #endif
 
 #ifdef REMOTE
@@ -200,13 +182,14 @@ extern "C" void app_main(void)
     ledLeft.init();
     ledRight.init();
 
-    potLeft >> *new Median<int, 11>() >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("remote/potLeft");
-    potRight >> *new Median<int, 11>() >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("remote/potRight");
-    buttonLeft >> *new Throttle<bool>(1000) >> mqtt.toTopic<bool>("remote/buttonLeft");
-    buttonRight >> *new Throttle<bool>(1000) >> mqtt.toTopic<bool>("remote/buttonRight");
-    mqtt.fromTopic<bool>("remote/ledLeft") >> ledLeft;
+    thisThread | potLeft.timer;
+    thisThread | potRight.timer;
+    potLeft >> *new Median<int, 11>() >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("remote/potLeft"); // timer driven
+    potRight >> *new Median<int, 11>() >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("remote/potRight"); // timer driven
+    buttonLeft >> *new Throttle<bool>(1000) >> mqtt.toTopic<bool>("remote/buttonLeft");   // ISR driven
+    buttonRight >> *new Throttle<bool>(1000) >> mqtt.toTopic<bool>("remote/buttonRight"); // ISR driven
+    mqtt.fromTopic<bool>("remote/ledLeft") >> ledLeft; 
     mqtt.fromTopic<bool>("remote/ledRight") >> ledRight;
-    fastPoller(potLeft)(potRight)(buttonLeft)(buttonRight);
 #endif
 
 #ifdef MOTOR
@@ -226,49 +209,28 @@ extern "C" void app_main(void)
 
     motor.observeOn(motorThread);
 
-    /*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
-           servo.integral >> mqtt.toTopic<float>("servo/I");
-           servo.derivative >> mqtt.toTopic<float>("servo/D");
-           servo.proportional >> mqtt.toTopic<float>("servo/P");
-           servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
-           servo.angleMeasured >> mqtt.toTopic<int>("servo/angleMeasured");
-           mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
+/*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
+       servo.integral >> mqtt.toTopic<float>("servo/I");
+       servo.derivative >> mqtt.toTopic<float>("servo/D");
+       servo.proportional >> mqtt.toTopic<float>("servo/P");
+       servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
+       servo.angleMeasured >> mqtt.toTopic<int>("servo/angleMeasured");
+       mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
 
-           //
-           nonBlockingPool.add(servo);*/
+       //
+       nonBlockingPool.add(servo);*/
 #endif
 
-    nonBlockingPool.add(ticker);
-    nonBlockingPool.add(slowPoller);
-    nonBlockingPool.add(fastPoller);
+    xTaskCreatePinnedToCore([](void*) {
+	INFO("motorThread started.");
+	motorThread.run();
+    }, "motorThread", 20000, NULL, 17, NULL, PRO_CPU);
 
-    blockingPool.setupAll();
-    nonBlockingPool.setupAll();
 
     xTaskCreatePinnedToCore([](void*) {
-        INFO("motorThread started.");
-        motorThread.run();
-    }, "motorThread", 20000,NULL, 17, NULL, PRO_CPU);
-
-    xTaskCreatePinnedToCore([](void*) {
-        while(true) {
-            nonBlockingPool.loopAll();
-            vTaskDelay(100);
-        }
-    }, "nonBlocking", 20000, NULL, 17, NULL, APP_CPU);
-
-    xTaskCreatePinnedToCore([](void*) {
-        while(true) {
-            blockingPool.loopAll();
-            vTaskDelay(100);
-        }
-    }, "blocking", 20000,NULL, 17, NULL, PRO_CPU);
-
-    xTaskCreatePinnedToCore([](void*) {
-        INFO("mqttThread started.");
-        mqttThread.run();
-    }, "mqttThread", 20000,NULL, 17, NULL, PRO_CPU);
-
-
-
+	INFO("mqttThread started.");
+	mqttThread.run();
+    }, "mqttThread", 20000, NULL, 17, NULL, PRO_CPU);
+	
+	thisThread.run();
 }

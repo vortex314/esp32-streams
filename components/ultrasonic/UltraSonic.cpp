@@ -1,31 +1,25 @@
 #include "UltraSonic.h"
 
-UltraSonic::UltraSonic(Connector* connector):Coroutine("ultrasonic") {
-	_connector =connector;
-	_hcsr = new HCSR04(*_connector);
-	distance=0;
-	delay=0;
+UltraSonic::UltraSonic(Connector* connector)
+    : TimerSource(1, 100, true)
+{
+    _connector = connector;
+    _hcsr = new HCSR04(*_connector);
+    distance = 0;
+    delay = 0;
+	*this >> *this;
 }
 
-UltraSonic::~UltraSonic() {
-	delete _hcsr;
-}
+UltraSonic::~UltraSonic() { delete _hcsr; }
 
-void UltraSonic::setup() {
-	_hcsr->init();
-}
+void UltraSonic::init() { _hcsr->init(); }
 
-void UltraSonic::loop() {
-	PT_BEGIN();
-	while(true) {
-		timeout(100);
-		PT_YIELD_UNTIL(timeout());
-		int cm = _hcsr->getCentimeters();
-		if(cm < 400 && cm > 0) {
-			distance = distance() + (cm - distance()) / 2;
-			delay = delay() + (_hcsr->getTime() - delay()) / 2;
-		}
-		_hcsr->trigger();
-	}
-	PT_END();
+void UltraSonic::onNext(const TimerMsg& tm)
+{
+    int cm = _hcsr->getCentimeters();
+    if(cm < 400 && cm > 0) {
+	distance = distance() + (cm - distance()) / 2;
+	delay = delay() + (_hcsr->getTime() - delay()) / 2;
+    }
+    _hcsr->trigger();
 }

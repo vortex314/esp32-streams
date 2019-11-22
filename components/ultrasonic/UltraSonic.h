@@ -5,10 +5,9 @@
 #include <Hardware.h>
 #include <Log.h>
 #include <Streams.h>
-#include <coroutine.h>
 #include <Mqtt.h>
 
-class UltraSonic : public Coroutine {
+class UltraSonic : public TimerSource ,public Sink<TimerMsg> {
 		Connector* _connector;
 		HCSR04* _hcsr;
 
@@ -17,8 +16,8 @@ class UltraSonic : public Coroutine {
 		ValueFlow<int32_t> delay=0;
 		UltraSonic(Connector*);
 		virtual ~UltraSonic();
-		void setup();
-		void loop();
+		void init();
+		void onNext(const TimerMsg& );
 };
 
 #endif // ULTRASONIC_H
