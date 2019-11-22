@@ -54,27 +54,31 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
       _dInTachoB(DigitalIn::create(pinTachoB)),
       _averageCapture(5,100), // smoothen measurements
       _timeoutFlow(100,0), // if no rpm measurement, suppose 0 as no capture
-      _captures(20) // bufer from ISR to user time
+      _captures(10) // bufer from ISR to user time
 {
     _isrCounter = 0;
     _mcpwm_num=MCPWM_UNIT_0;
     _timer_num=MCPWM_TIMER_0;
-	auto throttle = new Throttle<CaptureMsg>(100);
-	
-    _rawCapture >> *throttle >> _captures.fromIsr;
+    auto throttle = new Throttle<CaptureMsg>(100);
+
+    _rawCapture >>  _captures.fromIsr;
     _captures >> *new LambdaFlow<CaptureMsg,int32_t>([&](const CaptureMsg& msg) {
         {
-			if ( msg.timestamp > ( Sys::millis()+1000 )) return _prevRpm;
+            if ( msg.timestamp > ( Sys::millis()+1000 )) {
+                INFO("expired data");
+                return _prevRpm;
+            }
             uint32_t delta;
-			if ( msg.capture > _prevCapture ) delta = msg.capture - _prevCapture;
-			else delta = UINT32_MAX- _prevCapture + msg.capture;
+            if ( msg.capture > _prevCapture ) delta = msg.capture - _prevCapture;
+            else delta = UINT32_MAX- _prevCapture + msg.capture;
             int32_t rpm = deltaToRpm(delta,msg.direction);
             INFO(" rpm %ld , delta : %lu , capt : %lu , prev : %lu time : %llu",rpm,delta,msg.capture,_prevCapture,msg.timestamp);
             _prevCapture =msg.capture;
-			_prevRpm = rpm;
+            _prevRpm = rpm;
             return rpm;
         }
-    }) >> _timeoutFlow >> rpmMeasured;
+    }) >> _timeoutFlow  >> rpmMeasured;
+
 
 }
 
@@ -125,7 +129,7 @@ const uint32_t weight = 10;
 
 void RotaryEncoder::observeOn(Thread& t)
 {
-    _timeoutFlow.subscribeOn(t);
+    _timeoutFlow.timer.observeOn(t);
     _captures.observeOn(t);
 }
 
