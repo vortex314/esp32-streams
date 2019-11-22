@@ -8,55 +8,48 @@
 //______________________________________________________________________
 //
 template <class T>
-class Wait : public Flow<T, T>
-{
-    uint64_t _last;
-    uint32_t _delay;
+class Wait : public Flow<T, T> {
+		uint64_t _last;
+		uint32_t _delay;
 
-  public:
-    Wait(uint32_t delay)
-        : _delay(delay)
-    {
-    }
-    void onNext(T value)
-    {
-	uint32_t delta = Sys::millis() - _last;
-	if(delta > _delay) {
-	    this->emit(value);
-	}
-	_last = Sys::millis();
-    }
+	public:
+		Wait(uint32_t delay)
+			: _delay(delay) {
+		}
+		void onNext(T value) {
+			uint32_t delta = Sys::millis() - _last;
+			if(delta > _delay) {
+				this->emit(value);
+			}
+			_last = Sys::millis();
+		}
 };
 //______________________________________________________________________
 //
-class Poller : public TimerSource, public Sink<TimerMsg>
-{
-    std::vector<Requestable*> _requestables;
-    uint32_t _idx = 0;
+class Poller : public TimerSource, public Sink<TimerMsg> {
+		std::vector<Requestable*> _requestables;
+		uint32_t _idx = 0;
 
-  public:
-    ValueFlow<bool> run = false;
-    Poller(uint32_t iv)
-        : TimerSource(1, 100, true)
-    {
-	interval(iv);
-	*this >> *this;
-    };
+	public:
+		ValueFlow<bool> run = false;
+		Poller(uint32_t iv)
+			: TimerSource(1, 1000, true) {
+			interval(iv);
+			*this >> *this;
+		};
 
-    void onNext(const TimerMsg& tm)
-    {
-	_idx++;
-	if(_idx >= _requestables.size()) _idx = 0;
-	if(_requestables.size() && run()) {
-	    _requestables[_idx]->request();
-	}
-    }
+		void onNext(const TimerMsg& tm) {
+			_idx++;
+			if(_idx >= _requestables.size()) _idx = 0;
+			if(_requestables.size() && run()) {
+				_requestables[_idx]->request();
+			}
+		}
 
-    Poller& operator()(Requestable& rq)
-    {
-	_requestables.push_back(&rq);
-	return *this;
-    }
+		Poller& operator()(Requestable& rq) {
+			_requestables.push_back(&rq);
+			return *this;
+		}
 };
 // ___________________________________________________________________________
 //
@@ -126,111 +119,111 @@ Thread mqttThread;
 Thread thisThread;
 Thread motorThread;
 
-extern "C" void app_main(void)
-{
-    Sys::hostname(S(HOSTNAME));
-    systemHostname = S(HOSTNAME);
-    systemBuild = __DATE__ " " __TIME__;
+extern "C" void app_main(void) {
+	Sys::hostname(S(HOSTNAME));
+	systemHostname = S(HOSTNAME);
+	systemBuild = __DATE__ " " __TIME__;
 
-    wifi.init();
+	wifi.init();
 #ifndef HOSTNAME
-    std::string hn;
-    string_format(hn, "ESP32-%d", wifi.mac() & 0xFFFF);
-    Sys::hostname(hn.c_str());
-    systemHostname = hn;
+	std::string hn;
+	string_format(hn, "ESP32-%d", wifi.mac() & 0xFFFF);
+	Sys::hostname(hn.c_str());
+	systemHostname = hn;
 #endif
-    mqtt.init();
-    led.init();
-    wifi.connected >> mqtt.wifiConnected;
-    mqtt.connected >> led.blinkSlow;
+	mqtt.init();
+	led.init();
+	wifi.connected >> mqtt.wifiConnected;
+	mqtt.connected >> led.blinkSlow;
+	mqtt.connected >> slowPoller.run;
 
-    mqttThread | mqtt;
-    mqttThread | led;
-    mqttThread | slowPoller;
+	mqttThread | mqtt;
+	mqttThread | led;
+	mqttThread | slowPoller;
 
-    mqtt.observeOn(mqttThread);
+	mqtt.observeOn(mqttThread);
 
-    systemHeap >> mqtt.toTopic<uint32_t>("system/heap");
-    systemUptime >> mqtt.toTopic<uint64_t>("system/upTime");
-    systemBuild >> mqtt.toTopic<std::string>("system/build");
-    systemHostname >> mqtt.toTopic<std::string>("system/hostname");
-    wifi.ipAddress >> mqtt.toTopic<std::string>("wifi/ipAddress");
-    wifi.rssi >> mqtt.toTopic<int>("wifi/rssi");
-    wifi.ssid >> mqtt.toTopic<std::string>("wifi/ssid");
-    wifi.macAddress >> mqtt.toTopic<std::string>("wifi/mac");
+	systemHeap >> mqtt.toTopic<uint32_t>("system/heap");
+	systemUptime >> mqtt.toTopic<uint64_t>("system/upTime");
+	systemBuild >> mqtt.toTopic<std::string>("system/build");
+	systemHostname >> mqtt.toTopic<std::string>("system/hostname");
+	wifi.ipAddress >> mqtt.toTopic<std::string>("wifi/ipAddress");
+	wifi.rssi >> mqtt.toTopic<int>("wifi/rssi");
+	wifi.ssid >> mqtt.toTopic<std::string>("wifi/ssid");
+	wifi.macAddress >> mqtt.toTopic<std::string>("wifi/mac");
 
-    slowPoller(systemHeap)(systemUptime)(systemBuild)(systemHostname)(wifi.ipAddress)(wifi.rssi)(wifi.ssid)(
-        wifi.macAddress);
+	slowPoller(systemHeap)(systemUptime)(systemBuild)(systemHostname)(wifi.ipAddress)(wifi.rssi)(wifi.ssid)(
+	    wifi.macAddress);
 
 #ifdef GPS
-    gps.init(); // no thread , driven from interrupt
-    gps >> mqtt.outgoing.fromIsr;
+	gps.init(); // no thread , driven from interrupt
+	gps >> *new Throttle<MqttMessage>(1000)  >> mqtt.outgoing.fromIsr;
 #endif
 
 #ifdef US
-    ultrasonic.init();
-    ultrasonic.interval(200);
-    thisThread | ultrasonic;
-    ultrasonic.distance >> mqtt.toTopic<int32_t>("us/distance");
+	ultrasonic.init();
+	ultrasonic.interval(200);
+	thisThread | ultrasonic;
+	ultrasonic.distance >> mqtt.toTopic<int32_t>("us/distance");
 #endif
 
 #ifdef REMOTE
-    potLeft.init();
-    potRight.init();
-    buttonLeft.init();
-    buttonRight.init();
-    ledLeft.init();
-    ledRight.init();
+	potLeft.init();
+	potRight.init();
+	buttonLeft.init();
+	buttonRight.init();
+	ledLeft.init();
+	ledRight.init();
 
-    thisThread | potLeft.timer;
-    thisThread | potRight.timer;
-    potLeft >> *new Median<int, 11>() >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("remote/potLeft"); // timer driven
-    potRight >> *new Median<int, 11>() >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("remote/potRight"); // timer driven
-    buttonLeft >> *new Throttle<bool>(1000) >> mqtt.toTopic<bool>("remote/buttonLeft");   // ISR driven
-    buttonRight >> *new Throttle<bool>(1000) >> mqtt.toTopic<bool>("remote/buttonRight"); // ISR driven
-    mqtt.fromTopic<bool>("remote/ledLeft") >> ledLeft; 
-    mqtt.fromTopic<bool>("remote/ledRight") >> ledRight;
+	thisThread | potLeft.timer;
+	thisThread | potRight.timer;
+	potLeft >> *new Median<int, 11>() >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("remote/potLeft"); // timer driven
+	potRight >> *new Median<int, 11>() >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("remote/potRight"); // timer driven
+	buttonLeft >> *new Throttle<bool>(1000) >> mqtt.toTopic<bool>("remote/buttonLeft");   // ISR driven
+	buttonRight >> *new Throttle<bool>(1000) >> mqtt.toTopic<bool>("remote/buttonRight"); // ISR driven
+	mqtt.fromTopic<bool>("remote/ledLeft") >> ledLeft;
+	mqtt.fromTopic<bool>("remote/ledRight") >> ledRight;
 #endif
 
 #ifdef MOTOR
-    INFO(" init motor ");
-    rotaryEncoder.init();
-    rotaryEncoder.observeOn(motorThread);
-    rotaryEncoder.rpmMeasured >> motor.rpmMeasured;
-    rotaryEncoder.rpmMeasured >> mqtt.toTopic<int>("motor/rpmMeasured");
+	INFO(" init motor ");
+	rotaryEncoder.init();
+	rotaryEncoder.observeOn(motorThread);
+	rotaryEncoder.rpmMeasured >> motor.rpmMeasured;
+	rotaryEncoder.rpmMeasured >> mqtt.toTopic<int>("motor/rpmMeasured");
 
-    motor.init();
-    motor.output >> mqtt.toTopic<float>("motor/pwm");
-    motor.integral >> mqtt.toTopic<float>("motor/I");
-    motor.derivative >> mqtt.toTopic<float>("motor/D");
-    motor.proportional >> mqtt.toTopic<float>("motor/P");
-    motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
-    mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
+	motor.init();
+	motor.output >> mqtt.toTopic<float>("motor/pwm");
+	motor.integral >> mqtt.toTopic<float>("motor/I");
+	motor.derivative >> mqtt.toTopic<float>("motor/D");
+	motor.proportional >> mqtt.toTopic<float>("motor/P");
+	motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
+	mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
 
-    motor.observeOn(motorThread);
+	motor.observeOn(motorThread);
 
-/*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
-       servo.integral >> mqtt.toTopic<float>("servo/I");
-       servo.derivative >> mqtt.toTopic<float>("servo/D");
-       servo.proportional >> mqtt.toTopic<float>("servo/P");
-       servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
-       servo.angleMeasured >> mqtt.toTopic<int>("servo/angleMeasured");
-       mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
+	/*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
+	       servo.integral >> mqtt.toTopic<float>("servo/I");
+	       servo.derivative >> mqtt.toTopic<float>("servo/D");
+	       servo.proportional >> mqtt.toTopic<float>("servo/P");
+	       servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
+	       servo.angleMeasured >> mqtt.toTopic<int>("servo/angleMeasured");
+	       mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
 
-       //
-       nonBlockingPool.add(servo);*/
+	       //
+	       nonBlockingPool.add(servo);*/
 #endif
 
-    xTaskCreatePinnedToCore([](void*) {
-	INFO("motorThread started.");
-	motorThread.run();
-    }, "motorThread", 20000, NULL, 17, NULL, PRO_CPU);
+	xTaskCreatePinnedToCore([](void*) {
+		INFO("motorThread started.");
+		motorThread.run();
+	}, "motorThread", 20000, NULL, 17, NULL, PRO_CPU);
 
 
-    xTaskCreatePinnedToCore([](void*) {
-	INFO("mqttThread started.");
-	mqttThread.run();
-    }, "mqttThread", 20000, NULL, 17, NULL, PRO_CPU);
-	
+	xTaskCreatePinnedToCore([](void*) {
+		INFO("mqttThread started.");
+		mqttThread.run();
+	}, "mqttThread", 20000, NULL, 17, NULL, PRO_CPU);
+
 	thisThread.run();
 }
