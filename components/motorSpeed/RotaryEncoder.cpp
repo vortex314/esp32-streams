@@ -19,7 +19,7 @@
 
 #define CAPTURE_FREQ 80000000
 #define PULSE_PER_ROTATION 400
-#define CAPTURE_DIVIDER 10
+#define CAPTURE_DIVIDER 0
 
 #define CAP0_INT_EN BIT(27) // Capture 0 interrupt bit
 #define CAP1_INT_EN BIT(28) // Capture 1 interrupt bit
@@ -136,10 +136,10 @@ void RotaryEncoder::observeOn(Thread& t)
 
 int32_t RotaryEncoder::deltaToRpm(uint32_t delta, int32_t direction)
 {
-    float t = 60.0 *  CAPTURE_FREQ;
-    t *= CAPTURE_DIVIDER ;
-    t /= delta ;
-    t /= PULSE_PER_ROTATION;
-    int32_t rpm = ((int32_t)t) * direction;
-    return rpm;
+	int captureDivider =  CAPTURE_DIVIDER==0 ? 1 : CAPTURE_DIVIDER*2;
+	delta /= captureDivider;
+	float timePerPulse = ( delta / 10000) * (10000000000 / rtc_clk_apb_freq_get()); // in micro sec
+	float timePerRotation = timePerPulse * PULSE_PER_ROTATION ;
+	float rpm = ( 60 * 1000000 ) / timePerRotation;
+	return rpm * direction;
 }

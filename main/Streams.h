@@ -719,15 +719,18 @@ class ExponentialFilter :  public Flow<double,double>
 
 
 public:
-    ExponentialFilter(double ratio, uint32_t samples,uint32_t timeout )
+    ExponentialFilter(double ratio, uint32_t interval )
     {
+		_interval = interval;
         _expTime = Sys::millis() + _interval;
+		_ratio = ratio;
+		
     };
     void onNext(double& value)
     {
         _lastValue = ( 1- _ratio)*_lastValue + _ratio*value;
         if ( Sys::millis() > _expTime ) {
-            _expTime+=_interval;
+            _expTime= Sys::millis() + _interval;
             emit(_lastValue);
         }
     }
