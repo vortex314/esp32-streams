@@ -130,7 +130,6 @@ LambdaSource<uint64_t> systemUptime([]()
 Poller slowPoller(5000);
 Thread mqttThread;
 Thread thisThread;
-Thread motorThread;
 
 extern "C" void app_main(void)
 {
@@ -203,7 +202,7 @@ extern "C" void app_main(void)
 
     INFO(" init motor ");
     rotaryEncoder.init();
-    rotaryEncoder.observeOn(motorThread);
+    rotaryEncoder.observeOn(thisThread);
     rotaryEncoder.rpmMeasured >> motor.rpmMeasured;
     rotaryEncoder.rpmMeasured >> mqtt.toTopic<int>("motor/rpmMeasured");
 
@@ -215,11 +214,8 @@ extern "C" void app_main(void)
     motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
     mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
 
-    motor.observeOn(motorThread);
-    xTaskCreatePinnedToCore([](void*) {
-        INFO("motorThread started.");
-        motorThread.run();
-    }, "T-motor", 20000, NULL, 17, NULL, PRO_CPU);
+    motor.observeOn(thisThread);
+
 
     /*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
            servo.integral >> mqtt.toTopic<float>("servo/I");
