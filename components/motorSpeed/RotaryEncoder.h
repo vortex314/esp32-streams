@@ -16,13 +16,15 @@
 
 class CaptureMsg
 {
-  public:
-    uint32_t capture;
+public:
+    uint32_t delta;
     int32_t direction;
     uint64_t timestamp;
-	bool operator!=(const CaptureMsg& cm){
-		return true;
-	}
+    uint32_t isr;
+    bool operator!=(const CaptureMsg& cm)
+    {
+        return true;
+    }
 };
 
 class RotaryEncoder
@@ -31,13 +33,15 @@ class RotaryEncoder
     DigitalIn& _dInTachoB;
     uint32_t _pinTachoB;
 
+    uint32_t _apbClock;
+
     //    uint32_t _capture;
     uint32_t _prevCapture;
     uint64_t _captureTime;
     uint64_t _prevCaptureTime;
-	int32_t _prevRpm;
+    int32_t _prevRpm;
     uint32_t _delta;
-    uint32_t _deltaPrev;
+    uint32_t _prevDelta;
     uint32_t _captureInterval;
     uint32_t _isrCounter;
     int _direction = 1;
@@ -52,7 +56,7 @@ class RotaryEncoder
     TimeoutFlow<int32_t> _timeoutFlow;
     AsyncFlow<CaptureMsg> _captures;
 
-  public:
+public:
     ValueFlow<int32_t> rpmMeasured = 0;
 
     RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB);

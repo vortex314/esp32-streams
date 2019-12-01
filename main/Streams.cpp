@@ -2,14 +2,16 @@
 
 //______________________________________________________________________________
 //
-TimerSource& Thread::operator|(TimerSource& ts){
-	addTimer(&ts);
-	return ts;
+TimerSource& Thread::operator|(TimerSource& ts)
+{
+    addTimer(&ts);
+    return ts;
 }
 
-Requestable& Thread::operator|(Requestable& rq){
-	addRequestable(rq);
-	return rq;
+Requestable& Thread::operator|(Requestable& rq)
+{
+    addRequestable(rq);
+    return rq;
 }
 
 void Thread::addTimer(TimerSource* ts)
@@ -62,36 +64,41 @@ void Thread::awakeRequestableFromIsr(Requestable* rq)
 void Thread::run() // FREERTOS block thread until awake or timer expired.
 {
     while(true) {
-        uint64_t expTime = Sys::millis() + 5000;
+        uint64_t now= Sys::millis();
+        uint64_t expTime = now + 5000;
         TimerSource* expiredTimer = 0;
-
+// find next expired timer if any within 5 sec
         for(auto timer : _timers) {
             if(timer->expireTime() < expTime) {
                 expTime = timer->expireTime();
                 expiredTimer = timer;
             }
         }
-        if(expiredTimer && expTime < Sys::millis()) {
-//            INFO("[%X]:%d:%llu  timer already expired ", expiredTimer, expiredTimer->interval(),expiredTimer->expireTime());
-            uint64_t startTime = Sys::millis();
+
+        if(expiredTimer && (expTime <= now)) {
             if(expiredTimer) expiredTimer->request();
-            //                INFO("[%X]:%d timer request took : %llu
-            //                ",expiredTimer,expiredTimer->interval(),Sys::millis()-startTime);
         } else {
             Requestable* prq;
-            if(xQueueReceive(_workQueue, &prq, (TickType_t)pdMS_TO_TICKS(expTime - Sys::millis()) + 1) == pdTRUE) {
+            uint32_t waitTime=pdMS_TO_TICKS(expTime - now) + 1;
+            if ( waitTime < 0 ) waitTime=0;
+            uint32_t queueCounter=0;
+            while(xQueueReceive(_workQueue, &prq, (TickType_t)waitTime ) == pdTRUE) {
                 prq->request();
-                //                    INFO("executed request [%X]",prq);
-            } else {
-                if(expiredTimer) {
-                    //                        INFO("[%X]:%d:%llu timer request
-                    //                        ",expiredTimer,expiredTimer->interval(),expiredTimer->expireTime());
-                    expiredTimer->request();
+                queueCounter++;
+                if ( queueCounter>10 ) {
+                    WARN(" work queue > 10 ");
+                    break;
                 }
+                waitTime ==pdMS_TO_TICKS(expTime - Sys::millis());
+                if ( waitTime > 0 ) waitTime=0;
+            }
+            if(expiredTimer) {
+                expiredTimer->request();
             }
         }
     }
 }
+
 
 
 #endif // FREERTOS

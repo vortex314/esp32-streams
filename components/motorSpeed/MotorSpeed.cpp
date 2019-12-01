@@ -28,11 +28,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
         output.request();
         rpmTarget.request();
         current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
-        INFO("rpm %d/%d = %.2f => pwm=%.2f = %.2f + %.2f + %.2f ",  _rpmMeasured,rpmTarget(),error(),
-             output(),
-             KP() * error(),
-             KI() * integral(),
-             KD() * derivative());
+
     });
 
     _pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
@@ -41,7 +37,11 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     });
 
     auto pidCalc = new LambdaSink<int>([&](int rpm) {
-        INFO(" pid rpm %d ",rpm);
+        INFO("rpm %d/%d = %.2f => pwm=%.2f = %.2f + %.2f + %.2f ",  _rpmMeasured,rpmTarget(),error(),
+             output(),
+             KP() * error(),
+             KI() * integral(),
+             KD() * derivative());
         _rpmMeasured = rpm;
         static float newOutput;
         error = rpmTarget() - rpm;
@@ -87,9 +87,8 @@ void MotorSpeed::pulse()
 {
 
     static uint32_t pulse = 0;
-    static int rpmTargets[] = {0,  10, 20,  30, 20, 10, 0,
-                               -10, -20,  -30, -20,-10,0
-                              };
+    static int rpmTargets[] = {0,  60, 120,  180, 120, 60, 0};
+
     /*    static int rpmTargets[] = {0,  30, 50,  100, 150, 100, 80,
                                    40, 0,  -40, -80,-120,-80 -30
                                   };*/

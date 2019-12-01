@@ -19,7 +19,7 @@
 
 #define CAPTURE_FREQ 80000000
 #define PULSE_PER_ROTATION 400
-#define CAPTURE_DIVIDER 0
+#define CAPTURE_DIVIDER 10
 
 #define CAP0_INT_EN BIT(27) // Capture 0 interrupt bit
 #define CAP1_INT_EN BIT(28) // Capture 1 interrupt bit
@@ -40,9 +40,10 @@ void IRAM_ATTR RotaryEncoder::isrHandler(void* pv) // ATTENTION !!! no float cal
     re->_isrCounter++;
     // Check for interrupt on rising edge on CAP0 signal
     if(mcpwm_intr_status & CAP0_INT_EN) {
-	uint32_t capt = mcpwm_capture_signal_get_value(re->_mcpwm_num,
-	                                               MCPWM_SELECT_CAP0); // get capture signal counter value
-	re->_rawCapture.onNext({capt, re->_direction, Sys::millis()});
+        uint32_t capt = mcpwm_capture_signal_get_value(re->_mcpwm_num,
+                        MCPWM_SELECT_CAP0); // get capture signal counter value
+        re->_rawCapture.onNext({capt-re->_prevCapture, re->_direction, Sys::millis(),re->_isrCounter});
+        re->_prevCapture = capt;
     }
     MCPWM[re->_mcpwm_num]->int_clr.val = mcpwm_intr_status;
 }
@@ -52,36 +53,34 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     , _dInTachoB(DigitalIn::create(pinTachoB))
     , _averageCapture(5, 100)
     , // smoothen measurements
-    _timeoutFlow(100, 0)
+      _timeoutFlow(200, 0)
     ,             // if no rpm measurement, suppose 0 as no capture
-    _captures(10) // bufer from ISR to user time
+      _captures(10) // bufer from ISR to user time
 {
     _isrCounter = 0;
+    _apbClock = rtc_clk_apb_freq_get();
     _mcpwm_num = MCPWM_UNIT_0;
     _timer_num = MCPWM_TIMER_0;
     auto throttle = new Throttle<CaptureMsg>(100);
+    auto expFilter = new ExponentialFilter<uint32_t> (10,100);
 
-    _rawCapture >> _captures.fromIsr;
+    _rawCapture >>*throttle  >>_captures.fromIsr;
     _captures >> *new LambdaFlow<CaptureMsg, int32_t>([&](const CaptureMsg& msg) {
-	{
-	    if(msg.timestamp > (Sys::millis() + 1000)) {
-		INFO("expired data");
-		return _prevRpm;
-	    }
-	    uint32_t delta;
-	    if(msg.capture > _prevCapture)
-		delta = msg.capture - _prevCapture;
-	    else
-		delta = UINT32_MAX - _prevCapture + msg.capture;
-	    int32_t rpm = deltaToRpm(delta, msg.direction);
-	    INFO(" rpm %ld , delta : %lu , capt : %lu , prev : %lu time : %llu", rpm, delta, msg.capture, _prevCapture,
-	         msg.timestamp);
-	    _prevCapture = msg.capture;
-	    _prevRpm = rpm;
-	    return rpm;
-	}
+        {
+            if(msg.timestamp > (Sys::millis() + 1000)) {
+                WARN("expired data");
+                return _prevRpm;
+            }
+
+            int32_t rpm = deltaToRpm(msg.delta, msg.direction);
+            INFO(" rpm %ld , delta : %lu , time : %llu ISR : %lu",
+                 rpm, msg.delta,
+                 msg.timestamp, msg.isr);
+            _prevRpm = rpm;
+            return rpm;
+        }
     }) >>
-        _timeoutFlow >> rpmMeasured;
+       _timeoutFlow >> rpmMeasured;
 }
 
 RotaryEncoder::~RotaryEncoder() {}
@@ -89,9 +88,9 @@ RotaryEncoder::~RotaryEncoder() {}
 void RotaryEncoder::setPwmUnit(uint32_t unit)
 {
     if(unit == 0) {
-	_mcpwm_num = MCPWM_UNIT_0;
+        _mcpwm_num = MCPWM_UNIT_0;
     } else if(unit == 1) {
-	_mcpwm_num = MCPWM_UNIT_1;
+        _mcpwm_num = MCPWM_UNIT_1;
     }
 }
 // capture signal on falling edge, prescale = 0 i.e.
@@ -105,18 +104,18 @@ void RotaryEncoder::init()
     esp_err_t rc;
     rc = mcpwm_gpio_init(_mcpwm_num, MCPWM_CAP_0, _pinTachoA);
     if(rc != ESP_OK) {
-	WARN("mcpwm_gpio_init()=%d", rc);
+        WARN("mcpwm_gpio_init()=%d", rc);
     }
 
     rc = mcpwm_capture_enable(_mcpwm_num, MCPWM_SELECT_CAP0, MCPWM_NEG_EDGE, CAPTURE_DIVIDER);
     if(rc != ESP_OK) {
-	WARN("mcpwm_capture_enable()=%d", rc);
+        WARN("mcpwm_capture_enable()=%d", rc);
     }
     MCPWM[_mcpwm_num]->int_ena.val = CAP0_INT_EN;
     // Set ISR Handler
     rc = mcpwm_isr_register(_mcpwm_num, isrHandler, this, ESP_INTR_FLAG_IRAM, NULL);
     if(rc) {
-	WARN("mcpwm_capture_enable()=%d", rc);
+        WARN("mcpwm_capture_enable()=%d", rc);
     }
 }
 
@@ -132,7 +131,7 @@ int32_t RotaryEncoder::deltaToRpm(uint32_t delta, int32_t direction)
 {
     int captureDivider = CAPTURE_DIVIDER == 0 ? 1 : CAPTURE_DIVIDER * 2;
     delta /= captureDivider;
-    float timePerPulse = (delta / 10000) * (10000000000 / rtc_clk_apb_freq_get()); // in micro sec
+    float timePerPulse = (delta / 10000.0) * (10000000000.0 / _apbClock); // in micro sec
     float timePerRotation = timePerPulse * PULSE_PER_ROTATION;
     float rpm = (60 * 1000000) / timePerRotation;
     return rpm * direction;

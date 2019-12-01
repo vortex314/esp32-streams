@@ -407,11 +407,12 @@ public:
     Throttle(uint32_t delta)
     {
         _delta = delta;
+        _nextEmit = Sys::millis()+_delta;
     }
     void onNext(const T& value)
     {
         uint64_t now=Sys::millis();
-        if (  ( now > _nextEmit)) {
+        if (now > _nextEmit) {
             this->emit(value);
             _nextEmit=now + _delta;
         }
@@ -466,12 +467,16 @@ public:
     }
     void request()
     {
-        if(run())
+//       INFO("[%X] %d request() ",this,_id);
+        if(run()) {
             if (Sys::millis() >= _expireTime) {
 //                INFO("[%X]:%d:%llu timer emit ",this,interval(),expireTime());
                 _expireTime +=_interval;
                 this->emit({_id});
             }
+        } else {
+            WARN(" timer not running ");
+        }
     }
     uint64_t expireTime()
     {
@@ -709,34 +714,28 @@ public:
 //
 //__________________________________________________________________________
 
-
-class ExponentialFilter :  public Flow<double,double>
+template <class T>
+class ExponentialFilter :  public Flow<T,T>
 {
-    double _ratio;
-    double _lastValue;
-    uint64_t _expTime;
-    uint32_t _interval;
-
+    T _ratio;
+    T _lastValue;
+    T _total;
 
 public:
-    ExponentialFilter(double ratio, uint32_t interval )
+    ExponentialFilter(T ratio,T total)
     {
-		_interval = interval;
-        _expTime = Sys::millis() + _interval;
-		_ratio = ratio;
-		
+        _ratio = ratio;
+        _total=total;
+        _lastValue=0;
     };
-    void onNext(double& value)
+    void onNext(const T& value)
     {
-        _lastValue = ( 1- _ratio)*_lastValue + _ratio*value;
-        if ( Sys::millis() > _expTime ) {
-            _expTime= Sys::millis() + _interval;
-            emit(_lastValue);
-        }
+        _lastValue = (( _total - _ratio)*_lastValue + _ratio*value)/_total;
+        this->emit(_lastValue);
     }
     void request()
     {
-        emit(_lastValue);
+        this->emit(_lastValue);
     }
 
 };
@@ -750,14 +749,13 @@ public:
 template <class T>
 class TimeoutFlow : public Flow<T,T>
 {
-    uint32_t _interval;
     T _defaultValue;
 public:
     TimerSource timer;
     TimeoutFlow(uint32_t timeout,T defaultValue)  : _defaultValue(defaultValue),timer(1,timeout,true)
     {
         timer >> * new LambdaSink<TimerMsg>([&](TimerMsg tm) {
-            this->request();
+            this->emit(_defaultValue);
         });
     }
     void onNext(const T& t)
