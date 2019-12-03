@@ -43,7 +43,7 @@ class MotorSpeed
 
 public:
     ValueFlow<int> rpmTarget=40;
-    ValueFlow<float> KP=0.07,KI=0.0005,KD=0.0,output=0.0,error=0.0,rpmFiltered=0.0;
+    ValueFlow<float> KP=0.1,KI=0.001,KD=0.0,output=0.0,error=0.0,rpmFiltered=0.0;
     ValueFlow<float> proportional=0.0,integral=0.0,derivative=0.0;
     ValueFlow<float> current=0.0;
     ValueFlow<int> rpmMeasured;
