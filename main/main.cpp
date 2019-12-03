@@ -204,8 +204,7 @@ extern "C" void app_main(void)
     rotaryEncoder.init();
     rotaryEncoder.observeOn(thisThread);
     rotaryEncoder.rpmMeasured >> motor.rpmMeasured;
-	motor.rpmMeasured.emitOnChange(false);
-    rotaryEncoder.rpmMeasured >> mqtt.toTopic<int>("motor/rpmMeasured");
+    rotaryEncoder.rpmMeasured >>*new Throttle<int32_t>(1000)>> mqtt.toTopic<int>("motor/rpmMeasured");
 
     motor.init();
     motor.output >> mqtt.toTopic<float>("motor/pwm");

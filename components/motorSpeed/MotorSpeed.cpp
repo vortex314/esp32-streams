@@ -55,10 +55,10 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     });
 
     rpmMeasured >> *pidCalc ;
-   rpmMeasured.emitOnChange(false);
-       _controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tick) {
-            rpmMeasured.request();
-        });
+    rpmMeasured.emitOnChange(false);
+    _controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tick) {
+        rpmMeasured.request();
+    });
 
 }
 
@@ -87,7 +87,7 @@ void MotorSpeed::pulse()
 {
 
     static uint32_t pulse = 0;
-    static int rpmTargets[] = {0,  60, 120,  180, 120, 60, 0};
+    static int rpmTargets[] = {0,  60, 120,  180, 120, 60, 0,  -60, -120,  -180, -120, -60, 0};
 
     /*    static int rpmTargets[] = {0,  30, 50,  100, 150, 100, 80,
                                    40, 0,  -40, -80,-120,-80 -30

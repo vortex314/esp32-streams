@@ -42,7 +42,7 @@ void IRAM_ATTR RotaryEncoder::isrHandler(void* pv) // ATTENTION !!! no float cal
     if(mcpwm_intr_status & CAP0_INT_EN) {
         uint32_t capt = mcpwm_capture_signal_get_value(re->_mcpwm_num,
                         MCPWM_SELECT_CAP0); // get capture signal counter value
-        re->_rawCapture.onNext({capt-re->_prevCapture, re->_direction, Sys::millis(),re->_isrCounter});
+        re->_rawCapture.onNext((capt-re->_prevCapture)* re->_direction);
         re->_prevCapture = capt;
     }
     MCPWM[re->_mcpwm_num]->int_clr.val = mcpwm_intr_status;
@@ -57,21 +57,23 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     ,             // if no rpm measurement, suppose 0 as no capture
       _captures(10) // bufer from ISR to user time
 {
+    _captureDivider = CAPTURE_DIVIDER == 0 ? 1 : CAPTURE_DIVIDER * 2;
+    INFO(" capture Divider : %lu ",_captureDivider);
     _isrCounter = 0;
     _apbClock = rtc_clk_apb_freq_get();
+    INFO(" APB clock : %lu Hz",_apbClock);
     _mcpwm_num = MCPWM_UNIT_0;
     _timer_num = MCPWM_TIMER_0;
     auto expFilter = new ExponentialFilter<int32_t> (10,100);
 
-    _rawCapture >> *expFilter >> _timeoutFlow >> _captures;
-    _captures >> *new LambdaFlow<int32_t, int32_t>([&](const int32_t& delta) {
+    _rawCapture >> *expFilter
+    >> *new LambdaFlow<int32_t, int32_t>([&](const int32_t& delta) {
         {
-
-            int32_t rpm = deltaToRpm(delta);
-            INFO(" rpm %ld , delta : %lu  ISR : %lu",
-                 rpm, delta,_isrCounter);
+            return deltaToRpm(delta);
         }
-    })  >> rpmMeasured;
+    })
+            >> _timeoutFlow
+            >> rpmMeasured;
 }
 
 RotaryEncoder::~RotaryEncoder() {}
@@ -115,14 +117,14 @@ const uint32_t weight = 10;
 void RotaryEncoder::observeOn(Thread& t)
 {
     _timeoutFlow.timer.observeOn(t);
-    _captures.observeOn(t);
 }
-int32_t deltaToRpm(int32_t delta)
+int32_t RotaryEncoder::deltaToRpm(const int32_t delta)
 {
-    int32_t captureDivider = CAPTURE_DIVIDER == 0 ? 1 : CAPTURE_DIVIDER * 2;
-    delta /= captureDivider;
-    int32_t microSecPerTooth = (delta / 10000) * (10000000000 / _apbClock); // in micro sec
+    if ( delta == 0 ) return 0;
+    int32_t newDelta= delta / _captureDivider;
+    int32_t microSecPerTooth = (newDelta / 10000) * (10000000000 / _apbClock); // in micro sec
     int32_t microSecPerRotation = microSecPerTooth * PULSE_PER_ROTATION;
+    if ( microSecPerRotation==0) return 0;
     int32_t rpm = (60 * 1000000) / microSecPerRotation;
-    return rpm 
+    return rpm;
 }

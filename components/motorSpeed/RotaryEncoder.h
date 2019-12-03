@@ -39,6 +39,7 @@ class RotaryEncoder
     uint32_t _prevCapture;
     uint64_t _captureTime;
     uint64_t _prevCaptureTime;
+    int32_t _captureDivider;
     int32_t _prevRpm;
     uint32_t _delta;
     uint32_t _prevDelta;
@@ -63,7 +64,7 @@ public:
     ~RotaryEncoder();
     void init();
     static void isrHandler(void*);
-    int32_t deltaToRpm(uint32_t delta, int32_t direction);
+    int32_t deltaToRpm(const int32_t delta);
 
     void setPwmUnit(uint32_t);
     void observeOn(Thread& t);
