@@ -52,9 +52,9 @@ class RotaryEncoder
     int32_t _samples[MAX_SAMPLES];
     uint32_t _indexSample = 0;
     MovingAverage<uint32_t> _averageCapture;
-    ValueFlow<CaptureMsg> _rawCapture;
+    ValueFlow<int32_t> _rawCapture;
     TimeoutFlow<int32_t> _timeoutFlow;
-    AsyncFlow<CaptureMsg> _captures;
+    ValueFlow<int32_t> _captures;
 
 public:
     ValueFlow<int32_t> rpmMeasured = 0;

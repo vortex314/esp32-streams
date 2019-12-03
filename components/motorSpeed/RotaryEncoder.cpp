@@ -61,26 +61,17 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     _apbClock = rtc_clk_apb_freq_get();
     _mcpwm_num = MCPWM_UNIT_0;
     _timer_num = MCPWM_TIMER_0;
-    auto throttle = new Throttle<CaptureMsg>(100);
-    auto expFilter = new ExponentialFilter<uint32_t> (10,100);
+    auto expFilter = new ExponentialFilter<int32_t> (10,100);
 
-    _rawCapture >>*throttle  >>_captures.fromIsr;
-    _captures >> *new LambdaFlow<CaptureMsg, int32_t>([&](const CaptureMsg& msg) {
+    _rawCapture >> *expFilter >> _timeoutFlow >> _captures;
+    _captures >> *new LambdaFlow<int32_t, int32_t>([&](const int32_t& delta) {
         {
-            if(msg.timestamp > (Sys::millis() + 1000)) {
-                WARN("expired data");
-                return _prevRpm;
-            }
 
-            int32_t rpm = deltaToRpm(msg.delta, msg.direction);
-            INFO(" rpm %ld , delta : %lu , time : %llu ISR : %lu",
-                 rpm, msg.delta,
-                 msg.timestamp, msg.isr);
-            _prevRpm = rpm;
-            return rpm;
+            int32_t rpm = deltaToRpm(delta);
+            INFO(" rpm %ld , delta : %lu  ISR : %lu",
+                 rpm, delta,_isrCounter);
         }
-    }) >>
-       _timeoutFlow >> rpmMeasured;
+    })  >> rpmMeasured;
 }
 
 RotaryEncoder::~RotaryEncoder() {}
@@ -126,13 +117,12 @@ void RotaryEncoder::observeOn(Thread& t)
     _timeoutFlow.timer.observeOn(t);
     _captures.observeOn(t);
 }
-
-int32_t RotaryEncoder::deltaToRpm(uint32_t delta, int32_t direction)
+int32_t deltaToRpm(int32_t delta)
 {
-    int captureDivider = CAPTURE_DIVIDER == 0 ? 1 : CAPTURE_DIVIDER * 2;
+    int32_t captureDivider = CAPTURE_DIVIDER == 0 ? 1 : CAPTURE_DIVIDER * 2;
     delta /= captureDivider;
-    float timePerPulse = (delta / 10000.0) * (10000000000.0 / _apbClock); // in micro sec
-    float timePerRotation = timePerPulse * PULSE_PER_ROTATION;
-    float rpm = (60 * 1000000) / timePerRotation;
-    return rpm * direction;
+    int32_t microSecPerTooth = (delta / 10000) * (10000000000 / _apbClock); // in micro sec
+    int32_t microSecPerRotation = microSecPerTooth * PULSE_PER_ROTATION;
+    int32_t rpm = (60 * 1000000) / microSecPerRotation;
+    return rpm 
 }
