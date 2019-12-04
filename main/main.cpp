@@ -203,8 +203,8 @@ extern "C" void app_main(void)
     INFO(" init motor ");
     rotaryEncoder.init();
     rotaryEncoder.observeOn(thisThread);
-    rotaryEncoder.rpmMeasured >> motor.rpmMeasured;
-    rotaryEncoder.rpmMeasured >>*new Throttle<int32_t>(1000)>> mqtt.toTopic<int>("motor/rpmMeasured");
+    rotaryEncoder.rpmMeasured >> motor.rpmMeasured; // ISR driven !
+    motor.rpmMeasured >>*new Throttle<int32_t>(1000)>> mqtt.toTopic<int>("motor/rpmMeasured"); 
 
     motor.init();
     motor.output >> mqtt.toTopic<float>("motor/pwm");
@@ -212,6 +212,10 @@ extern "C" void app_main(void)
     motor.derivative >> mqtt.toTopic<float>("motor/D");
     motor.proportional >> mqtt.toTopic<float>("motor/P");
     motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
+	mqtt.fromTopic<float>("motor/KI") >> motor.KI >> mqtt.toTopic<float>("motor/KI");
+	mqtt.fromTopic<float>("motor/KP") >> motor.KP >> mqtt.toTopic<float>("motor/KP");
+	mqtt.fromTopic<float>("motor/KD") >> motor.KD >> mqtt.toTopic<float>("motor/KD");
+
     mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
 
     motor.observeOn(thisThread);

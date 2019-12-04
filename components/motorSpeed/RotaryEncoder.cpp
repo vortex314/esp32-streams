@@ -65,8 +65,9 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     _mcpwm_num = MCPWM_UNIT_0;
     _timer_num = MCPWM_TIMER_0;
     auto expFilter = new ExponentialFilter<int32_t> (10,100);
+	auto median = new Median<int32_t,5>();
 
-    _rawCapture >> *expFilter
+    _rawCapture >> *median
     >> *new LambdaFlow<int32_t, int32_t>([&](const int32_t& delta) {
         {
             return deltaToRpm(delta);

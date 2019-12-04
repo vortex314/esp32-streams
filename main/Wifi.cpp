@@ -82,7 +82,7 @@ esp_err_t Wifi::wifi_event_handler(void* ctx, system_event_t* event) {
 				INFO("SYSTEM_EVENT_STA_GOT_IP");
 				system_event_sta_got_ip_t* got_ip = &event->event_info.got_ip;
 				char my_ip_address[20];
-				ip4addr_ntoa_r(&got_ip->ip_info.ip, my_ip_address, 20);
+				ip4addr_ntoa_r((ip4_addr_t*)&got_ip->ip_info.ip, my_ip_address, 20);
 				wifi.ipAddress = my_ip_address;
 				wifi.connected = true;
 				break;
