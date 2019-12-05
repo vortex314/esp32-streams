@@ -129,10 +129,9 @@ void BTS7960::setOutput(float dutyCycle)
 {
 //   INFO("MCPWM[%d] PWM=%f",_mcpwm_num,dutyCycle);
 
-    static float lastDutyCycle = 0;
-    if ( abs(lastDutyCycle-dutyCycle)< 0.5) return;
+    if ( abs(_lastDutyCycle-dutyCycle)< 0.5) return;
 //   dutyCycle =  lastDutyCycle*(1-weight)+dutyCycle*weight;
-    if ((dutyCycle < 0 && lastDutyCycle > 0) || (dutyCycle > 0 && lastDutyCycle < 0)) {
+    if ((dutyCycle < 0 && _lastDutyCycle > 0) || (dutyCycle > 0 && _lastDutyCycle < 0)) {
         _pinLeftEnable.write(1);
         _pinRightEnable.write(1);
         left(0);
@@ -151,7 +150,7 @@ void BTS7960::setOutput(float dutyCycle)
         left(0);
         right(0);
     }
-    lastDutyCycle = dutyCycle;
+    _lastDutyCycle = dutyCycle;
 }
 
 void BTS7960::setPwmUnit(uint32_t unit)

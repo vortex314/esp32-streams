@@ -9,15 +9,18 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     : _bts7960(pinLeftIS, pinRightIS, pinLeftEnable, pinRightEnable, pinLeftPwm,
                pinRightPwm),
       _pulseTimer(1,5000,true), // change steps each 5 sec
-      _reportTimer(2,500,true), // to MQTT and display 1/sec
+      _reportTimer(2,1000,true), // to MQTT and display 1/sec
       _controlTimer(3,CONTROL_INTERVAL_MS,true) // PID per 100 msec
 
 {
     //_rpmMeasuredFilter = new AverageFilter<float>();
     rpmTarget = 0;
-    _watchdogCounter = 0;
-    _directionTargetLast = 0;
     _bts7960.setPwmUnit(0);
+    integral.emitOnChange(false);
+    derivative.emitOnChange(false);
+    proportional.emitOnChange(false);
+    pwm.emitOnChange(false);
+
     _reportTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
         KI.request();
         KD.request();
@@ -25,7 +28,6 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
         integral.request();
         derivative.request();
         proportional.request();
-        output.request();
         rpmTarget.request();
         current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
 
@@ -37,21 +39,20 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     });
 
     auto pidCalc = new LambdaSink<int>([&](int rpm) {
-        INFO("rpm %d/%d = %.2f => pwm=%.2f = %.2f + %.2f + %.2f ",  _rpmMeasured,rpmTarget(),error(),
-             output(),
+        INFO("rpm %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",  rpm,rpmTarget(),error(),
+             pwm(),
              KP() * error(),
              KI() * integral(),
              KD() * derivative());
-        _rpmMeasured = rpm;
         static float newOutput;
         error = rpmTarget() - rpm;
-        newOutput = PID(error(), CONTROL_INTERVAL_MS);
+        newOutput = PID(error(), CONTROL_INTERVAL_MS/1000.0);
         if (rpmTarget() == 0) {
             newOutput = 0;
             integral=0;
         }
-        output = newOutput;
-        _bts7960.setOutput(output());
+        pwm = newOutput;
+        _bts7960.setOutput(pwm());
     });
 
     rpmMeasured >> *pidCalc ;
@@ -87,7 +88,7 @@ void MotorSpeed::pulse()
 {
 
     static uint32_t pulse = 0;
-    static int rpmTargets[] = {0,  60, 120,  180, 120, 60, 0,  -60, -120,  -180, -120, -60, 0};
+    static int rpmTargets[] = {0,  60, 120,  180, 120, 60, 0,  -60, -120,  -180, -120, -60};
 
     /*    static int rpmTargets[] = {0,  30, 50,  100, 150, 100, 80,
                                    40, 0,  -40, -80,-120,-80 -30
@@ -106,7 +107,7 @@ float MotorSpeed::PID(float err, float interval)
     float integralPart = KI() * integral();
     if ( integralPart > 30 ) integral =30.0 / KI();
     if ( integralPart < -30.0 ) integral =-30.0 / KI();
-    float output = KP() * err + KI()*integral() + KD() * derivative() + bias;
+    float output = KP() * err + KI()*integral() + KD() * derivative() ;
     _errorPrior = err;
     return output;
 }

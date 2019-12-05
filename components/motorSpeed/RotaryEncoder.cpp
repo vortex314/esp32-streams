@@ -19,7 +19,7 @@
 
 #define CAPTURE_FREQ 80000000
 #define PULSE_PER_ROTATION 400
-#define CAPTURE_DIVIDER 10
+#define CAPTURE_DIVIDER 5
 
 #define CAP0_INT_EN BIT(27) // Capture 0 interrupt bit
 #define CAP1_INT_EN BIT(28) // Capture 1 interrupt bit
@@ -40,8 +40,8 @@ void IRAM_ATTR RotaryEncoder::isrHandler(void* pv) // ATTENTION !!! no float cal
     re->_isrCounter++;
     // Check for interrupt on rising edge on CAP0 signal
     if(mcpwm_intr_status & CAP0_INT_EN) {
-        uint32_t capt = mcpwm_capture_signal_get_value(re->_mcpwm_num,
-                        MCPWM_SELECT_CAP0); // get capture signal counter value
+        uint32_t capt = mcpwm_capture_signal_get_value(re->_mcpwm_num,MCPWM_SELECT_CAP0);
+        // get capture signal counter value
         re->_rawCapture.onNext((capt-re->_prevCapture)* re->_direction);
         re->_prevCapture = capt;
     }
@@ -65,12 +65,13 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     _mcpwm_num = MCPWM_UNIT_0;
     _timer_num = MCPWM_TIMER_0;
     auto expFilter = new ExponentialFilter<int32_t> (10,100);
-	auto median = new Median<int32_t,5>();
+    auto median = new Median<int32_t,5>();
 
     _rawCapture >> *median
     >> *new LambdaFlow<int32_t, int32_t>([&](const int32_t& delta) {
         {
-            return deltaToRpm(delta);
+            int32_t rpm = deltaToRpm(delta);
+            return rpm;
         }
     })
             >> _timeoutFlow

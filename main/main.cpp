@@ -88,6 +88,7 @@ Neo6m gps(&uextGps);
 #include <UltraSonic.h>
 Connector uextUs(US);
 UltraSonic ultrasonic(&uextUs);
+Thread usThread;
 #endif
 
 #ifdef MOTOR
@@ -96,12 +97,14 @@ UltraSonic ultrasonic(&uextUs);
 Connector uextMotor(MOTOR);
 RotaryEncoder rotaryEncoder(uextMotor.toPin(LP_SCL), uextMotor.toPin(LP_SDA));
 MotorSpeed motor(&uextMotor);
+Thread motorThread;
 #endif
 
 #ifdef SERVO
 #include <MotorServo.h>
 Connector uextServo(2);
 MotorServo servo(&uextServo);
+Thread servoThread;
 #endif
 
 #ifdef REMOTE
@@ -202,44 +205,53 @@ extern "C" void app_main(void)
 
     INFO(" init motor ");
     rotaryEncoder.init();
-    rotaryEncoder.observeOn(thisThread);
+    rotaryEncoder.observeOn(motorThread);
     rotaryEncoder.rpmMeasured >> motor.rpmMeasured; // ISR driven !
-    motor.rpmMeasured >>*new Throttle<int32_t>(1000)>> mqtt.toTopic<int>("motor/rpmMeasured"); 
 
     motor.init();
-    motor.output >> mqtt.toTopic<float>("motor/pwm");
-    motor.integral >> mqtt.toTopic<float>("motor/I");
-    motor.derivative >> mqtt.toTopic<float>("motor/D");
-    motor.proportional >> mqtt.toTopic<float>("motor/P");
+    motor.pwm >> *new Throttle<float>(1000) >>mqtt.toTopic<float>("motor/pwm");
     motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
-	mqtt.fromTopic<float>("motor/KI") >> motor.KI >> mqtt.toTopic<float>("motor/KI");
-	mqtt.fromTopic<float>("motor/KP") >> motor.KP >> mqtt.toTopic<float>("motor/KP");
-	mqtt.fromTopic<float>("motor/KD") >> motor.KD >> mqtt.toTopic<float>("motor/KD");
+    motor.rpmMeasured >> *new Throttle<int>(1000) >>mqtt.toTopic<int>("motor/rpmMeasured");
 
+    mqtt.fromTopic<float>("motor/KI") >> motor.KI;
+    motor.KI >> mqtt.toTopic<float>("motor/KI");
+    mqtt.fromTopic<float>("motor/KP") >> motor.KP;
+    motor.KP >> mqtt.toTopic<float>("motor/KP");
+    mqtt.fromTopic<float>("motor/KD") >> motor.KD;
+    motor.KD >> mqtt.toTopic<float>("motor/KD");
     mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
-
-    motor.observeOn(thisThread);
-
-
-    /*       servo.output >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
-           servo.integral >> mqtt.toTopic<float>("servo/I");
-           servo.derivative >> mqtt.toTopic<float>("servo/D");
-           servo.proportional >> mqtt.toTopic<float>("servo/P");
-           servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
-           servo.angleMeasured >> mqtt.toTopic<int>("servo/angleMeasured");
-           mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
-
-           //
-           nonBlockingPool.add(servo);*/
+    motor.observeOn(motorThread);
+    servo.observeOn(servoThread);
+    xTaskCreatePinnedToCore([](void*) {
+        INFO("motorThread started.");
+        motorThread.run();
+    }, "motor", 20000, NULL, 17, NULL, APP_CPU);
 #endif
 
-
-
+#ifdef SERVO
+    servo.init();
+    servo.pwm >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
+    servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
+    servo.angleMeasured >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("servo/angleMeasured");
+    mqtt.fromTopic<float>("servo/KI") >> servo.KI;
+    servo.KI >> mqtt.toTopic<float>("servo/KI");
+    mqtt.fromTopic<float>("servo/KP") >> servo.KP;
+    servo.KP >> mqtt.toTopic<float>("servo/KP");
+    mqtt.fromTopic<float>("servo/KD") >> servo.KD;
+    servo.KD >> mqtt.toTopic<float>("servo/KD");
+    mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
+    servo.observeOn(servoThread);
+    xTaskCreatePinnedToCore([](void*) {
+        INFO("servoThread started.");
+        servoThread.run();
+    }, "servo", 20000, NULL, 17, NULL, APP_CPU);
+#endif
 
     xTaskCreatePinnedToCore([](void*) {
         INFO("mqttThread started.");
         mqttThread.run();
-    }, "T-mqtt", 20000, NULL, 17, NULL, PRO_CPU);
+    }, "mqtt", 20000, NULL, 17, NULL, PRO_CPU);
+
 
     thisThread.run();
 }

@@ -37,6 +37,7 @@ class BTS7960
     int _angleTarget;
     int _angleCurrent;
     int _directionTargetLast;
+    float _lastDutyCycle;
     uint32_t MAX_PWM=80;
 
 public:

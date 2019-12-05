@@ -12,7 +12,7 @@ DEFINE ?= -DAAAAA=BBBBBB
 SERIAL_PORT ?= /dev/tty$(TTY)
 ESPPORT = $(SERIAL_PORT)
 SERIAL_BAUD = 115200
-# ESPBAUD = 512000 // 921600
+ESPBAUD = 921600
 IDF_PATH ?= /home/lieven/esp/esp-idf
 WORKSPACE := /home/lieven/workspace
 DEFINES := -DWIFI_SSID=${SSID} -DWIFI_PASS=${PSWD}  -DESP32_IDF=1 $(DEFINE) -DMQTT_HOST=limero.ddns.net -DMQTT_PORT=1883
@@ -37,11 +37,11 @@ REMOTE :
 	
 MOTOR_WIFI :
 	touch main/main.cpp
-	make DEFINE="-DMOTOR=1 -DHOSTNAME=motor"
+	make DEFINE="-DMOTOR=1 -DHOSTNAME=drive"
 	
 SERVO_WIFI :
 	touch main/main.cpp
-	make DEFINE="-DSERVO=2 -DHOSTNAME=steer"
+	make DEFINE="-DSERVO=2 -DHOSTNAME=drive"
 	
 DRIVE :
 	touch main/main.cpp

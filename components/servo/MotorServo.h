@@ -3,7 +3,6 @@
 
 #include <Hardware.h>
 #include <Streams.h>
-#include <coroutine.h>
 #include <MedianFilter.h>
 #include <BTS7960.h>
 
@@ -13,7 +12,7 @@
 
 #define SERVO_MAX_SAMPLES 16
 
-class MotorServo : public Coroutine
+class MotorServo
 {
 
 // D34 : L_IS
@@ -37,12 +36,13 @@ class MotorServo : public Coroutine
     uint32_t _indexSample=0;
     int _watchdogCounter;
     int _directionTargetLast;
-    Timer _pulseTimer;
-    Timer _reportTimer;
+    TimerSource _pulseTimer;
+    TimerSource _reportTimer;
+    TimerSource _controlTimer;
 public:
     ValueFlow<int> angleTarget=0;
     ValueFlow<int> angleMeasured=0;
-    ValueFlow<float> KP=3,KI=0.005,KD=0.1,output=0.0,error=0.0,rpmFiltered=0.0;
+    ValueFlow<float> KP=3,KI=0.1,KD=0.0,pwm=0.0,error=0.0;
     ValueFlow<float> proportional=0.0,integral=0.0,derivative=0.0;
     ValueFlow<float> current=0.0;
     ValueFlow<bool> keepGoing=true;
@@ -51,8 +51,8 @@ public:
                uint32_t pinLeftEnable, uint32_t pinRightEnable,
                uint32_t pinLeftPwm, uint32_t pinRightPwm);
     ~MotorServo();
-    void setup();
-    void loop();
+    void init();
+    void observeOn(Thread& thread);
 
     void calcTarget(float);
     float PID(float error, float interval);

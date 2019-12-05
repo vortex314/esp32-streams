@@ -23,27 +23,14 @@ class MotorSpeed
 
     BTS7960 _bts7960;
 
-    int _directionTargetLast;
-    float _rpmFiltered;
-
-    float bias = 0;
     float _errorPrior = 0;
-    float _sample_time = 1;
-//   float _angleFiltered;
-    // AverageFilter<float>* _rpmMeasuredFilter;
-    int _watchdogCounter;
-    float _currentLeft ;
-    float _currentRight;
-//	    int _pwmSign = 1;
     TimerSource _pulseTimer;
     TimerSource _reportTimer;
     TimerSource _controlTimer;
-    int _rpmMeasured;
-
 
 public:
     ValueFlow<int> rpmTarget=40;
-    ValueFlow<float> KP=0.1,KI=0.001,KD=0.0,output=0.0,error=0.0,rpmFiltered=0.0;
+    ValueFlow<float> KP=0.05,KI=0.2,KD=0,pwm=0.0,error=0.0;
     ValueFlow<float> proportional=0.0,integral=0.0,derivative=0.0;
     ValueFlow<float> current=0.0;
     ValueFlow<int> rpmMeasured;

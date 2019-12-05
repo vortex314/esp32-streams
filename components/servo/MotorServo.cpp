@@ -1,7 +1,7 @@
 #include "MotorServo.h"
 
 #define MAX_PWM 50
-#define CONTROL_INTERVAL_MS 10
+#define CONTROL_INTERVAL_MS 100
 #define ANGLE_MIN -45.0
 #define ANGLE_MAX 45.0
 #define ADC_MIN 330
@@ -13,12 +13,11 @@
 MotorServo::MotorServo(uint32_t pinPot, uint32_t pinIS,
                        uint32_t pinLeftEnable, uint32_t pinRightEnable,
                        uint32_t pinLeftPwm, uint32_t pinRightPwm) :
-
-    Coroutine("servo"),
     _bts7960(pinIS, pinIS, pinLeftEnable, pinRightEnable, pinLeftPwm,pinRightPwm),
     _adcPot(ADC::create(pinPot)),
-    _pulseTimer(10000,true,true),
-    _reportTimer(100,true,true)
+    _pulseTimer(1,5000,true),
+    _reportTimer(2,1000,true),
+    _controlTimer(3,CONTROL_INTERVAL_MS,true)
 {
     _bts7960.setPwmUnit(1);
 }
@@ -41,66 +40,56 @@ MotorServo::~MotorServo()
 }
 
 
-void MotorServo::setup()
+void MotorServo::init()
 {
 
     Erc rc = _adcPot.init();
     if ( rc != E_OK ) WARN("Potentiometer initialization failed");
     if ( _bts7960.initialize() ) WARN("BTS7960 initialization failed");
-    /*
-        timers().startPeriodicTimer("controlTimer", Msg("controlTimer"), CONTROL_INTERVAL_MS);
-        timers().startPeriodicTimer("reportTimer", Msg("reportTimer"), 100);
-        timers().startPeriodicTimer("pulseTimer", Msg("pulseTimer"), 10000);
-        timers().startPeriodicTimer("watchdogTimer", Msg("watchdogTimer"), 2000);*/
+
+    _controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
+        if ( angleTarget()< ANGLE_MIN) angleTarget=ANGLE_MIN;
+        if ( angleTarget()> ANGLE_MAX) angleTarget=ANGLE_MAX;
+        if ( measureAngle()) {
+            _error = angleTarget() - angleMeasured();
+            pwm = PID(_error, CONTROL_INTERVAL_MS/1000.0);
+            _bts7960.setOutput(pwm());
+        }
+    });
+    _pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
+
+        static uint32_t pulse=0;
+        static int outputTargets[]= {-30,0,30,0};
+        angleTarget=outputTargets[pulse];
+        pulse++;
+        pulse %= (sizeof(outputTargets)/sizeof(int));
+        _pulseTimer.start();
+    });
+    _reportTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
+        KI.request();
+        KD.request();
+        KP.request();
+        integral.request();
+        derivative.request();
+        proportional.request();
+        angleTarget.request();
+        angleMeasured.request();
+        current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
+        current.request();
+        INFO("angle %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",  angleMeasured(),angleTarget(),error(),
+             pwm(),
+             KP() * error(),
+             KI() * integral(),
+             KD() * derivative());
+        _reportTimer.start();
+    });
 }
 
-void MotorServo::loop()
+void MotorServo::observeOn(Thread & thread)
 {
-    PT_BEGIN();
-    timeout(CONTROL_INTERVAL_MS);
-
-    while(true) {
-        PT_YIELD_UNTIL(timeout() || _pulseTimer.timeout() || _reportTimer.timeout());
-        if ( timeout() ) {
-            if ( angleTarget()< ANGLE_MIN) angleTarget=ANGLE_MIN;
-            if ( angleTarget()> ANGLE_MAX) angleTarget=ANGLE_MAX;
-            if ( measureAngle()) {
-                _error = angleTarget() - angleMeasured();
-                output = PID(_error, CONTROL_INTERVAL_MS);
-                _bts7960.setOutput(output());
-            }
-            timeout(CONTROL_INTERVAL_MS);
-        }
-        if ( _pulseTimer.timeout()) {
-            static uint32_t pulse=0;
-            static int outputTargets[]= {-30,0,30,0};
-            angleTarget=outputTargets[pulse];
-            pulse++;
-            pulse %= (sizeof(outputTargets)/sizeof(int));
-            _pulseTimer.start();
-        }
-        if ( _reportTimer.timeout()) {
-            KI.request();
-            KD.request();
-            KP.request();
-            integral.request();
-            derivative.request();
-            proportional.request();
-            output.request();
-            angleTarget.request();
-            angleMeasured.request();
-            current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
-            current.request();
-            INFO("angle %d/%d = %f => pwm=%f = %f + %f + %f ",  angleMeasured(),angleTarget(),error(),
-                 output(),
-                 KP() * error(),
-                 KI() * integral(),
-                 KD() * derivative());
-            _reportTimer.start();
-        }
-
-    }
-    PT_END();
+    _pulseTimer.observeOn(thread);
+    _controlTimer.observeOn(thread);
+    _reportTimer.observeOn(thread);
 }
 
 float MotorServo::scale(float x,float x1,float x2,float y1,float y2)
@@ -128,9 +117,9 @@ float MotorServo::PID(float err, float interval)
     integral = integral() + (err * interval);
     derivative = (err - _errorPrior) / interval;
     float integralPart = KI() * integral();
-    if ( integralPart > 20 ) integral =20.0 / KI();
-    if ( integralPart < -20.0 ) integral =-20.0 / KI();
-    float output = KP() * err + integralPart + KD() * derivative() + _bias;
+    if ( integralPart > 30 ) integral =30.0 / KI();
+    if ( integralPart < -30.0 ) integral =-30.0 / KI();
+    float output = KP() * err + KI()*integral() + KD() * derivative() ;
     _errorPrior = err;
     return output;
 }
