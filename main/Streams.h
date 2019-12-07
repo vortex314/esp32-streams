@@ -187,6 +187,14 @@ template <class OUT> Requestable& operator>>(Source<OUT> &source, Sink<OUT> &sin
     return source;
 };
 
+template <class T>
+Flow<T,T>& operator==(Flow<T,T> &flow1, Flow<T,T> &flow2)
+{
+    flow1.subscribe(flow2);
+	flow2.subscribe(flow1);
+	return flow2;
+};
+
 //______________________________________________________________________________
 //
 //______________________________________________________________________________
