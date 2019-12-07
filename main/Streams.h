@@ -191,8 +191,8 @@ template <class T>
 Flow<T,T>& operator==(Flow<T,T> &flow1, Flow<T,T> &flow2)
 {
     flow1.subscribe(flow2);
-	flow2.subscribe(flow1);
-	return flow2;
+    flow2.subscribe(flow1);
+    return flow2;
 };
 
 //______________________________________________________________________________
@@ -775,6 +775,157 @@ public:
     {
         this->emit(_defaultValue);
     };
+};
+
+
+#include "esp_system.h"
+#include "nvs_flash.h"
+#include "nvs.h"
+
+extern nvs_handle _nvs;
+
+template <class T>
+class ConfigFlow : public Flow<T, T>
+{
+    std::string _name;
+    T _value;
+
+    static void init()
+    {
+        esp_err_t err = nvs_flash_init();
+        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            ESP_ERROR_CHECK(nvs_flash_erase());
+            err = nvs_flash_init();
+        }
+        err = nvs_open("storage", NVS_READWRITE, &_nvs);
+        if ( err != ESP_OK ) WARN(" non-volatile storage open fails.");
+    }
+    bool load(T& value)
+    {
+        size_t required_size = sizeof(T);
+        esp_err_t  err = nvs_get_blob(_nvs, _name.c_str(), &value, &required_size);
+        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
+        return true;
+    }
+
+    bool save(T& value)
+    {
+        esp_err_t err = nvs_set_blob(_nvs, _name.c_str(), &value, sizeof(T));
+        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
+        nvs_commit(_nvs);
+        return true;
+    }
+
+public:
+    ConfigFlow(const char* name, T defaultValue)
+        : _name(name)
+        , _value(defaultValue)
+    {
+        _value=defaultValue;
+        if ( _nvs==0 ) {
+            init();
+        };
+        if ( load(_value) ) {
+            INFO(" Config load %s : %f",_name.c_str(),_value);
+        } else {
+            INFO(" Config default %s : %f",_name.c_str(),_value);
+        }
+    }
+
+    void onNext(const T& value)
+    {
+        _value=value;
+        save(_value);
+    }
+    void request()
+    {
+        this->emit(_value);
+    }
+    inline void operator=(T value)
+    {
+        onNext(value);
+    };
+    inline T operator()()
+    {
+        return _value;
+    }
+};
+
+template<>
+class ConfigFlow<std::string> : public Flow<std::string,std::string>
+{
+    std::string _name;
+    std::string _value;
+
+    static void init()
+    {
+        esp_err_t err = nvs_flash_init();
+        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            ESP_ERROR_CHECK(nvs_flash_erase());
+            err = nvs_flash_init();
+        }
+        err = nvs_open("storage", NVS_READWRITE, &_nvs);
+        if ( err != ESP_OK ) WARN(" non-volatile storage open fails.");
+    }
+
+    bool load(std::string& value)
+    {
+        char buffer[256];
+        size_t required_size = sizeof(buffer);
+        esp_err_t  err = nvs_get_str(_nvs, _name.c_str(), buffer, &required_size);
+        if (err == ESP_OK ) {
+            INFO("found %s",_name.c_str());
+            value=buffer;
+            return true;
+        }
+        return false;
+    }
+
+    bool save(std::string& value)
+    {
+        char buffer[256];
+        strncpy(buffer,value.c_str(),sizeof(buffer)-1);
+        esp_err_t  err = nvs_set_str(_nvs, _name.c_str(), buffer);
+        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
+        nvs_commit(_nvs);
+        return true;
+    }
+
+
+
+public:
+    ConfigFlow(const char* name, const char* defaultValue)
+        : _name(name)
+        , _value(defaultValue)
+    {
+        _value=defaultValue;
+        if ( _nvs==0 ) {
+            init();
+        }
+        if ( load(_value) ) {
+            INFO(" Config load %s : %s",_name.c_str(),_value.c_str());
+        } else {
+            INFO(" Config default %s : %s",_name.c_str(),_value.c_str());
+        }
+    };
+    void onNext(const std::string& value)
+    {
+        _value=value;
+        save(_value);
+    }
+    void request()
+    {
+        this->emit(_value);
+    }
+    inline void operator=(const char* value)
+    {
+        _value=value;
+        save(_value);
+    };
+    inline const char* operator()()
+    {
+        return _value.c_str();
+    }
 };
 
 #endif // STREAMS_H

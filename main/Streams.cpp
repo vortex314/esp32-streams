@@ -99,6 +99,8 @@ void Thread::run() // FREERTOS block thread until awake or timer expired.
     }
 }
 
+nvs_handle _nvs=0;
+
 
 
 #endif // FREERTOS

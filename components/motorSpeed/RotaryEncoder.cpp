@@ -64,7 +64,7 @@ RotaryEncoder::RotaryEncoder(uint32_t pinTachoA, uint32_t pinTachoB)
     INFO(" APB clock : %lu Hz",_apbClock);
     _mcpwm_num = MCPWM_UNIT_0;
     _timer_num = MCPWM_TIMER_0;
-    auto expFilter = new ExponentialFilter<int32_t> (10,100);
+//    auto expFilter = new ExponentialFilter<int32_t> (10,100);
     auto median = new Median<int32_t,5>();
 
     _rawCapture >> *median
