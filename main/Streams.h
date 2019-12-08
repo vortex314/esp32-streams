@@ -192,7 +192,7 @@ Flow<T,T>& operator==(Flow<T,T> &flow1, Flow<T,T> &flow2)
 {
     flow1.subscribe(flow2);
     flow2.subscribe(flow1);
-    return flow2;
+    return flow1;
 };
 
 //______________________________________________________________________________
@@ -810,6 +810,7 @@ class ConfigFlow : public Flow<T, T>
 
     bool save(T& value)
     {
+        INFO(" Config saved : %s ",_name.c_str());
         esp_err_t err = nvs_set_blob(_nvs, _name.c_str(), &value, sizeof(T));
         if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
         nvs_commit(_nvs);
@@ -836,6 +837,7 @@ public:
     {
         _value=value;
         save(_value);
+        request();
     }
     void request()
     {

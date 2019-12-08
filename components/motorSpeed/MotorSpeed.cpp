@@ -22,15 +22,15 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     pwm.emitOnChange(false);
 
     _reportTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
-        KI.request();
-        KD.request();
-        KP.request();
         integral.request();
         derivative.request();
         proportional.request();
-        rpmTarget.request();
         current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
-
+        INFO("rpm %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",  rpmMeasured(),rpmTarget(),error(),
+             pwm(),
+             KP() * error(),
+             KI() * integral(),
+             KD() * derivative());
     });
 
     _pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
@@ -39,11 +39,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     });
 
     auto pidCalc = new LambdaSink<int>([&](int rpm) {
-        INFO("rpm %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",  rpm,rpmTarget(),error(),
-             pwm(),
-             KP() * error(),
-             KI() * integral(),
-             KD() * derivative());
+
         static float newOutput;
         error = rpmTarget() - rpm;
         newOutput = PID(error(), CONTROL_INTERVAL_MS/1000.0);
@@ -59,6 +55,10 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     rpmMeasured.emitOnChange(false);
     _controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tick) {
         rpmMeasured.request();
+    });
+
+    rpmTarget >> *new LambdaSink<int>([](int v) {
+        INFO(" rpmTarget : %d ",v);
     });
 
 }
@@ -78,7 +78,7 @@ void MotorSpeed::init()
 void MotorSpeed::observeOn(Thread& t)
 {
     _reportTimer.observeOn(t);
-    _pulseTimer.observeOn(t);
+//    _pulseTimer.observeOn(t);
     _controlTimer.observeOn(t);
 }
 

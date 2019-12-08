@@ -42,7 +42,10 @@ class MotorServo
 public:
     ValueFlow<int> angleTarget=0;
     ValueFlow<int> angleMeasured=0;
-    ValueFlow<float> KP=3,KI=0.1,KD=0.0,pwm=0.0,error=0.0;
+    ConfigFlow<float> KP= {"servo/KP",3};
+    ConfigFlow<float> KI= {"servo/KI",0.1};
+    ConfigFlow<float> KD= {"servo/KD",0};
+    ValueFlow<float> pwm=0.0,error=0.0;
     ValueFlow<float> proportional=0.0,integral=0.0,derivative=0.0;
     ValueFlow<float> current=0.0;
     ValueFlow<bool> keepGoing=true;

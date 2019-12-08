@@ -37,56 +37,60 @@ typedef struct MqttMessage {
 //____________________________________________________________________________________________________________
 //
 template <class T>
-class MqttFlow : public Flow<T, T>, public Flow<MqttMessage, MqttMessage>
+class MqttFlow : public Flow<T, T>
 {
     std::string _name;
-    using Flow<T, T>::onNext;
-    using Flow<MqttMessage, MqttMessage>::onNext;
-    using Flow<T, T>::subscribe;
-    using Flow<MqttMessage, MqttMessage>::subscribe;
-  public:
-    MqttFlow(std::string name)
-        : _name(name){};
+
+public:
+    LambdaSink<MqttMessage> mqttIn;
+    ValueFlow<MqttMessage> mqttOut;
+    MqttFlow(std::string name): _name(name)
+    {
+        mqttIn =  *new LambdaSink<MqttMessage>([&](const MqttMessage& msg) {
+            onNext(msg);
+        });
+    };
 
     void onNext(const T& event)
     {
-	std::string s;
-	DynamicJsonDocument doc(100);
-	JsonVariant variant = doc.to<JsonVariant>();
-	variant.set(event);
-	serializeJson(doc, s);
-	Flow<MqttMessage,MqttMessage>::emit({_name, s});
-	// emit doesn't work as such
-	// https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
+//       INFO(" topic : %s ",_name.c_str());
+        std::string s;
+        DynamicJsonDocument doc(100);
+        JsonVariant variant = doc.to<JsonVariant>();
+        variant.set(event);
+        serializeJson(doc, s);
+        mqttOut.emit({_name, s});
+        // emit doesn't work as such
+        // https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
     }
 
     void onNext(const MqttMessage& mqttMessage)
     {
-	if(mqttMessage.topic != _name) {
-	    return;
-	}
-	DynamicJsonDocument doc(100);
-	auto error = deserializeJson(doc, mqttMessage.message);
-	if(error) {
-	    WARN(" failed JSON parsing '%s' : '%s' ", mqttMessage.message.c_str(), error.c_str());
-	    return;
-	}
-	JsonVariant variant = doc.as<JsonVariant>();
-	if(variant.isNull()) {
-	    WARN(" is not a JSON variant '%s' ", mqttMessage.message.c_str());
-	    return;
-	}
-	if(variant.is<T>() == false) {
-	    WARN(" message '%s' JSON type doesn't match.", mqttMessage.message.c_str());
-	    return;
-	}
-	T value = variant.as<T>();
-	Flow<T,T>::emit(value);
-	// emit doesn't work as such
-	// https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
+        if(mqttMessage.topic != _name) return;
+//       INFO(" topic : %s ",_name.c_str());
+
+        DynamicJsonDocument doc(100);
+        auto error = deserializeJson(doc, mqttMessage.message);
+        if(error) {
+            WARN(" failed JSON parsing '%s' : '%s' ", mqttMessage.message.c_str(), error.c_str());
+            return;
+        }
+        JsonVariant variant = doc.as<JsonVariant>();
+        if(variant.isNull()) {
+            WARN(" is not a JSON variant '%s' ", mqttMessage.message.c_str());
+            return;
+        }
+        if(variant.is<T>() == false) {
+            WARN(" message '%s' JSON type doesn't match.", mqttMessage.message.c_str());
+            return;
+        }
+        T value = variant.as<T>();
+        this->emit(value);
+        // emit doesn't work as such
+        // https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
     }
 
-    void request(){};
+    void request() {};
 };
 //____________________________________________________________________________________________________________
 //
@@ -95,21 +99,21 @@ class ToMqtt : public Flow<T, MqttMessage>
 {
     std::string _name;
 
-  public:
+public:
     ToMqtt(std::string name)
-        : _name(name){};
+        : _name(name) {};
     void onNext(const T& event)
     {
-	std::string s;
-	DynamicJsonDocument doc(100);
-	JsonVariant variant = doc.to<JsonVariant>();
-	variant.set(event);
-	serializeJson(doc, s);
-	this->emit({_name, s});
-	// emit doesn't work as such
-	// https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
+        std::string s;
+        DynamicJsonDocument doc(100);
+        JsonVariant variant = doc.to<JsonVariant>();
+        variant.set(event);
+        serializeJson(doc, s);
+        this->emit({_name, s});
+        // emit doesn't work as such
+        // https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
     }
-    void request(){};
+    void request() {};
 };
 
 //_______________________________________________________________________________________________________________
@@ -119,35 +123,35 @@ class FromMqtt : public Flow<MqttMessage, T>
 {
     std::string _name;
 
-  public:
+public:
     FromMqtt(std::string name)
-        : _name(name){};
+        : _name(name) {};
     void onNext(const MqttMessage& mqttMessage)
     {
-	if(mqttMessage.topic != _name) {
-	    return;
-	}
-	DynamicJsonDocument doc(100);
-	auto error = deserializeJson(doc, mqttMessage.message);
-	if(error) {
-	    WARN(" failed JSON parsing '%s' : '%s' ", mqttMessage.message.c_str(), error.c_str());
-	    return;
-	}
-	JsonVariant variant = doc.as<JsonVariant>();
-	if(variant.isNull()) {
-	    WARN(" is not a JSON variant '%s' ", mqttMessage.message.c_str());
-	    return;
-	}
-	if(variant.is<T>() == false) {
-	    WARN(" message '%s' JSON type doesn't match.", mqttMessage.message.c_str());
-	    return;
-	}
-	T value = variant.as<T>();
-	this->emit(value);
-	// emit doesn't work as such
-	// https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
+        if(mqttMessage.topic != _name) {
+            return;
+        }
+        DynamicJsonDocument doc(100);
+        auto error = deserializeJson(doc, mqttMessage.message);
+        if(error) {
+            WARN(" failed JSON parsing '%s' : '%s' ", mqttMessage.message.c_str(), error.c_str());
+            return;
+        }
+        JsonVariant variant = doc.as<JsonVariant>();
+        if(variant.isNull()) {
+            WARN(" is not a JSON variant '%s' ", mqttMessage.message.c_str());
+            return;
+        }
+        if(variant.is<T>() == false) {
+            WARN(" message '%s' JSON type doesn't match.", mqttMessage.message.c_str());
+            return;
+        }
+        T value = variant.as<T>();
+        this->emit(value);
+        // emit doesn't work as such
+        // https://stackoverflow.com/questions/9941987/there-are-no-arguments-that-depend-on-a-template-parameter
     }
-    void request(){};
+    void request() {};
 };
 
 class Mqtt : public Sink<TimerMsg>, public Flow<MqttMessage, MqttMessage>
@@ -162,7 +166,7 @@ class Mqtt : public Sink<TimerMsg>, public Flow<MqttMessage, MqttMessage>
     Timer _reportTimer;
     std::string _hostPrefix;
 
-  public:
+public:
     AsyncFlow<MqttMessage> outgoing;
     AsyncFlow<MqttMessage> incoming;
     LambdaSink<bool> wifiConnected;
@@ -186,23 +190,23 @@ class Mqtt : public Sink<TimerMsg>, public Flow<MqttMessage, MqttMessage>
     template <class T>
     Sink<T>& toTopic(const char* name)
     {
-	return *(new ToMqtt<T>(name)) >> outgoing;
+        return *(new ToMqtt<T>(name)) >> outgoing;
     }
     template <class T>
     Source<T>& fromTopic(const char* name)
     {
-	auto newSource = new FromMqtt<T>(name);
-	incoming >> *newSource;
-	return *newSource;
+        auto newSource = new FromMqtt<T>(name);
+        incoming >> *newSource;
+        return *newSource;
     }
 
     template <class T>
-    MqttFlow<T> topic(const char* name)
+    MqttFlow<T>& topic(const char* name)
     {
-	auto newFlow = new MqttFlow<T>(name);
-	//	incoming >> *newFlow;
-	//	*newFlow >> outgoing;
-	return *newFlow;
+        auto newFlow = new MqttFlow<T>(name);
+        incoming >> newFlow->mqttIn;
+        newFlow->mqttOut >> outgoing;
+        return *newFlow;
     }
     void observeOn(Thread& thread);
 };

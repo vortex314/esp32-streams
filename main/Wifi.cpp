@@ -17,7 +17,6 @@
 
 Wifi::Wifi() : prefix("wifi/prefix",S(WIFI_SSID)),password("wifi/password",S(WIFI_PASS))
 {
-    INFO("ssid prefix : %s vs %s ",prefix(),S(WIFI_SSID));
     rssi = 0;
 }
 

@@ -4,9 +4,9 @@
 #define CONTROL_INTERVAL_MS 100
 #define ANGLE_MIN -45.0
 #define ANGLE_MAX 45.0
-#define ADC_MIN 330
-#define ADC_MAX 620
-#define ADC_ZERO 460
+#define ADC_MIN 260
+#define ADC_MAX 551
+#define ADC_ZERO 414
 
 
 
@@ -66,17 +66,13 @@ void MotorServo::init()
         _pulseTimer.start();
     });
     _reportTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
-        KI.request();
-        KD.request();
-        KP.request();
         integral.request();
         derivative.request();
         proportional.request();
-        angleTarget.request();
         angleMeasured.request();
         current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
         current.request();
-        INFO("angle %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",  angleMeasured(),angleTarget(),error(),
+        INFO("%d angle %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",_potFilter.getMedian(),  angleMeasured(),angleTarget(),error(),
              pwm(),
              KP() * error(),
              KI() * integral(),
@@ -87,7 +83,7 @@ void MotorServo::init()
 
 void MotorServo::observeOn(Thread & thread)
 {
-    _pulseTimer.observeOn(thread);
+//    _pulseTimer.observeOn(thread);
     _controlTimer.observeOn(thread);
     _reportTimer.observeOn(thread);
 }

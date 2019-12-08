@@ -107,18 +107,16 @@ Thread usThread;
 #endif
 
 #ifdef MOTOR
+
 #include <RotaryEncoder.h>
 #include <MotorSpeed.h>
 Connector uextMotor(MOTOR);
-RotaryEncoder rotaryEncoder(uextMotor.toPin(LP_SCL), uextMotor.toPin(LP_SDA));
-MotorSpeed motor(&uextMotor);
-Thread motorThread;
 #endif
 
 #ifdef SERVO
 #include <MotorServo.h>
 Connector uextServo(2);
-MotorServo servo(&uextServo);
+
 Thread servoThread;
 #endif
 
@@ -147,6 +145,7 @@ LambdaSource<uint64_t> systemUptime([]()
 
 Thread mqttThread;
 Thread thisThread;
+Thread motorThread;
 
 
 extern "C" void app_main(void)
@@ -160,7 +159,7 @@ extern "C" void app_main(void)
 
     Wifi& wifi=*new Wifi();
     Mqtt& mqtt=*new Mqtt();
-    Poller& slowPoller=*new Poller(5000);
+    Poller& slowPoller=*new Poller(1000);
 
 
     wifi.init();
@@ -219,40 +218,35 @@ extern "C" void app_main(void)
 
     thisThread | potLeft.timer;
     thisThread | potRight.timer;
-    potLeft >> *new Median<int, 11>() >> *new Throttle<int>(100) >> mqtt.toTopic<int>("remote/potLeft"); // timer driven
-    potRight >> *new Median<int, 11>() >> *new Throttle<int>(100) >> mqtt.toTopic<int>("remote/potRight"); // timer driven
+    potLeft >> *new Median<int, 5>()  >> mqtt.toTopic<int>("remote/potLeft"); // timer driven
+    potRight >> *new Median<int, 5>()  >> mqtt.toTopic<int>("remote/potRight"); // timer driven
     buttonLeft >> *new Throttle<bool>(100) >> mqtt.toTopic<bool>("remote/buttonLeft");   // ISR driven
     buttonRight >> *new Throttle<bool>(100) >> mqtt.toTopic<bool>("remote/buttonRight"); // ISR driven
-    mqtt.fromTopic<bool>("remote/ledLeft") >> ledLeft;
-    mqtt.fromTopic<bool>("remote/ledRight") >> ledRight;
+    mqtt.topic<bool>("remote/ledLeft") >> ledLeft;
+    mqtt.topic<bool>("remote/ledRight") >> ledRight;
     fastPoller(buttonLeft)(buttonRight);
     thisThread | fastPoller;
 #endif
 
 #ifdef MOTOR
-
+    RotaryEncoder& rotaryEncoder=* new RotaryEncoder(uextMotor.toPin(LP_SCL), uextMotor.toPin(LP_SDA));
+    MotorSpeed& motor=*new MotorSpeed(&uextMotor); // cannot init as global var because of NVS
     INFO(" init motor ");
     rotaryEncoder.init();
     rotaryEncoder.observeOn(motorThread);
     rotaryEncoder.rpmMeasured >> motor.rpmMeasured; // ISR driven !
 
     motor.init();
-    motor.pwm >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("motor/pwm");
-    motor.rpmTarget >> mqtt.toTopic<int>("motor/rpmTarget");
-    motor.rpmMeasured >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("motor/rpmMeasured");
+    motor.pwm >> *new Throttle<float>(100) >> mqtt.toTopic<float>("motor/pwm");
+    motor.rpmMeasured >> *new Throttle<int>(100) >> mqtt.toTopic<int>("motor/rpmMeasured");
 
-    *new ConfigFlow<float>("motor/KI",0.1) == motor.KI;
-    motor.KI == *new MqttFlow<float>("motor/KI")::Flow<float,float>;
+    motor.KI == mqtt.topic<float>("motor/KI");
+    motor.KP == mqtt.topic<float>("motor/KP");
+    motor.KD == mqtt.topic<float>("motor/KD");
+    motor.rpmTarget == mqtt.topic<int>("motor/rpmTarget");
+    slowPoller(motor.KI)(motor.KP)(motor.KD)(motor.rpmTarget);
 
-    mqtt.fromTopic<float>("motor/KI") >> motor.KI;
-    motor.KI >> mqtt.toTopic<float>("motor/KI");
-    mqtt.fromTopic<float>("motor/KP") >> motor.KP;
-    motor.KP >> mqtt.toTopic<float>("motor/KP");
-    mqtt.fromTopic<float>("motor/KD") >> motor.KD;
-    motor.KD >> mqtt.toTopic<float>("motor/KD");
-    mqtt.fromTopic<int>("motor/rpmTarget") >> motor.rpmTarget;
     motor.observeOn(motorThread);
-    servo.observeOn(servoThread);
     xTaskCreatePinnedToCore([](void*) {
         INFO("motorThread started.");
         motorThread.run();
@@ -260,18 +254,16 @@ extern "C" void app_main(void)
 #endif
 
 #ifdef SERVO
+    MotorServo& servo=*new MotorServo(&uextServo);
     servo.init();
-    servo.pwm >> *new Throttle<float>(1000) >> mqtt.toTopic<float>("servo/pwm");
-    servo.angleTarget >> mqtt.toTopic<int>("servo/angleTarget");
-    servo.angleMeasured >> *new Throttle<int>(1000) >> mqtt.toTopic<int>("servo/angleMeasured");
-    mqtt.fromTopic<float>("servo/KI") >> servo.KI;
-    servo.KI >> mqtt.toTopic<float>("servo/KI");
+    servo.pwm >> *new Throttle<float>(100) >> mqtt.toTopic<float>("servo/pwm");
+    servo.angleMeasured >> *new Throttle<int>(100) >> mqtt.toTopic<int>("servo/angleMeasured");
+    servo.KI == mqtt.topic<float>("servo/KI");
+    servo.KP == mqtt.topic<float>("servo/KP");
+    servo.KD == mqtt.topic<float>("servo/KD");
+    servo.angleTarget == mqtt.topic<int>("servo/angleTarget");
+    slowPoller(servo.KI)(servo.KP)(servo.KD)(servo.angleTarget);
 
-    mqtt.fromTopic<float>("servo/KP") >> servo.KP;
-    servo.KP >> mqtt.toTopic<float>("servo/KP");
-    mqtt.fromTopic<float>("servo/KD") >> servo.KD;
-    servo.KD >> mqtt.toTopic<float>("servo/KD");
-    mqtt.fromTopic<int>("servo/angleTarget") >> servo.angleTarget;
     servo.observeOn(servoThread);
     xTaskCreatePinnedToCore([](void*) {
         INFO("servoThread started.");
