@@ -19,106 +19,89 @@
 
 #endif
 
-
 #ifdef ARDUINO
 #include <printf.h>
-#define LOG(fmt, ...)                                                          \
-    {                                                                            \
-        char line[256];                                                            \
-        int len = snprintf(line, sizeof(line), "I %06lld | %.12s:%.3d | ",      \
-                           Sys::millis(), __FILE__, __LINE__);                     \
-        snprintf((char *)(line + len), sizeof(line) - len, fmt, ##__VA_ARGS__);    \
-        Serial.println(line);                                                        \
+#define LOG(fmt, ...)                                                                                          \
+    {                                                                                                          \
+	char line[256];                                                                                        \
+	int len = snprintf(line, sizeof(line), "I %06lld | %.12s:%.3d | ", Sys::millis(), __FILE__, __LINE__); \
+	snprintf((char*)(line + len), sizeof(line) - len, fmt, ##__VA_ARGS__);                                 \
+	Serial.println(line);                                                                                  \
     }
-#define WARN(fmt, ...)                                                         \
-    {                                                                            \
-        char line[256];                                                            \
-        int len = snprintf(line, sizeof(line), "W %06lld | %.12s:%.3d | ",      \
-                           Sys::millis(), __FILE__, __LINE__);                     \
-        snprintf((char *)(line + len), sizeof(line) - len, fmt, ##__VA_ARGS__);    \
-        Serial.println(line);                                                        \
+#define WARN(fmt, ...)                                                                                         \
+    {                                                                                                          \
+	char line[256];                                                                                        \
+	int len = snprintf(line, sizeof(line), "W %06lld | %.12s:%.3d | ", Sys::millis(), __FILE__, __LINE__); \
+	snprintf((char*)(line + len), sizeof(line) - len, fmt, ##__VA_ARGS__);                                 \
+	Serial.println(line);                                                                                  \
     }
 #define INFO LOG
 class Sys
 {
-public:
+  public:
     static String hostname;
     static String cpu;
     static String build;
     static String board;
-    static uint64_t millis()
-    {
-        return ::millis();
-    }
+    static uint64_t millis() { return ::millis(); }
 };
 #else
 #include <Log.h>
 #endif
 //______________________________________________________________________________
 //
-template <class T> class Observer
+template <class T>
+class Observer
 {
-public:
+  public:
     virtual void onNext(const T&) = 0;
 };
-template <class IN> class Sink : public Observer<IN>
+template <class IN>
+class Sink : public Observer<IN>
 {
 };
 //______________________________________________________________________________
 class Thread;
-template <class IN,class OUT> class Flow;
+template <class IN, class OUT>
+class Flow;
 //
 // DD : used vector of void pointers and not vector of pointers to template
 // class, to avoid explosion of vector implementations
 class Requestable
 {
-public:
+  public:
     virtual void request() = 0;
     //{ WARN(" I am abstract Requestable. Don't call me."); };
 };
 // not sure these extra inheritance are useful
-template <class T> class Source : public Requestable
+template <class T>
+class Source : public Requestable
 {
-    std::vector<void *> _observers;
+    std::vector<void*> _observers;
 
-protected:
-    uint32_t size()
-    {
-        return _observers.size();
-    }
-    Observer<T> *operator[](uint32_t idx)
-    {
-        return static_cast<Observer<T> *>(_observers[idx]);
-    }
+  protected:
+    uint32_t size() { return _observers.size(); }
+    Observer<T>* operator[](uint32_t idx) { return static_cast<Observer<T>*>(_observers[idx]); }
 
-public:
-    virtual void subscribe(Observer<T> &observer)
-    {
-        _observers.push_back((void *)&observer);
-    }
+  public:
+    virtual void subscribe(Observer<T>& observer) { _observers.push_back((void*)&observer); }
 
     void emit(const T& t)
     {
-        for (void *pv : _observers) {
-            Observer<T> *pObserver = static_cast<Observer<T> *>(pv);
-            pObserver->onNext(t);
-        }
+	for(void* pv : _observers) {
+	    Observer<T>* pObserver = static_cast<Observer<T>*>(pv);
+	    pObserver->onNext(t);
+	}
     }
-
 };
 
 class Async
 {
-    Thread* _observerThread=0;
-public:
-    void observeOn(Thread& thread)
-    {
-        _observerThread = &thread;
-    }
-    Thread* observerThread()
-    {
-        return _observerThread;
-    }
+    Thread* _observerThread = 0;
+
+  public:
+    void observeOn(Thread& thread) { _observerThread = &thread; }
+    Thread* observerThread() { return _observerThread; }
 };
 
 // A flow can be both Sink and Source. Most of the time it will be in the middle
@@ -128,67 +111,62 @@ public:
 template <class IN, class OUT>
 class Flow : public Sink<IN>, public Source<OUT>
 {
-public:
-    Flow() {};
-    Flow<IN, OUT>(Sink<IN> &a, Source<OUT> &b) : Sink<IN>(a), Source<OUT>(b) {};
+  public:
+    Flow(){};
+    Flow<IN, OUT>(Sink<IN>& a, Source<OUT>& b)
+        : Sink<IN>(a)
+        , Source<OUT>(b){};
 };
 //_________________________________________CompositeFlow_______________________________
 //
 template <class IN, class INTERM, class OUT>
 class CompositeFlow : public Flow<IN, OUT>
 {
-    Flow<IN,INTERM> &_in;
-    Flow<INTERM,OUT> &_out;
+    Flow<IN, INTERM>& _in;
+    Flow<INTERM, OUT>& _out;
 
-public:
-    CompositeFlow(Flow<IN,INTERM> &a, Flow<INTERM,OUT> &b) : Flow<IN,OUT>(a,b),_in(a),_out(b)
-    {
-    };
-    void request()
-    {
-        _in.request();
-    };
-    void onNext(const IN& in)
-    {
-        _in.onNext(in);
-    }
-    void subscribe(Observer<OUT>& observer)
-    {
-        _out.subscribe(observer);
-    }
+  public:
+    CompositeFlow(Flow<IN, INTERM>& a, Flow<INTERM, OUT>& b)
+        : Flow<IN, OUT>(a, b)
+        , _in(a)
+        , _out(b){};
+    void request() { _in.request(); };
+    void onNext(const IN& in) { _in.onNext(in); }
+    void subscribe(Observer<OUT>& observer) { _out.subscribe(observer); }
 };
 //______________________________________________________________________________________
 //
 template <class IN, class INTERM, class OUT>
-Flow<IN, OUT> &operator>>(Flow<IN, INTERM> &flow1, Flow<INTERM, OUT> &flow2)
+Flow<IN, OUT>& operator>>(Flow<IN, INTERM>& flow1, Flow<INTERM, OUT>& flow2)
 {
-    Flow<IN,OUT>* cflow = new CompositeFlow<IN, INTERM,OUT>(flow1, flow2);
+    Flow<IN, OUT>* cflow = new CompositeFlow<IN, INTERM, OUT>(flow1, flow2);
     flow1.subscribe(flow2);
     return *cflow;
 };
 
 template <class IN, class OUT>
-Sink<IN> &operator>>(Flow<IN, OUT> &flow, Sink<OUT> &sink)
+Sink<IN>& operator>>(Flow<IN, OUT>& flow, Sink<OUT>& sink)
 {
     flow.subscribe(sink);
     return flow;
 };
 
 template <class IN, class OUT>
-Source<OUT> &operator>>(Source<IN> &source, Flow<IN, OUT> &flow)
+Source<OUT>& operator>>(Source<IN>& source, Flow<IN, OUT>& flow)
 {
     source.subscribe(flow);
     return flow;
 };
 
-template <class OUT> Requestable& operator>>(Source<OUT> &source, Sink<OUT> &sink)
+template <class OUT>
+Requestable& operator>>(Source<OUT>& source, Sink<OUT>& sink)
 {
     source.subscribe(sink);
     return source;
 };
 
 template <class T>
-Flow<T,T>& operator==(Flow<T,T> &flow1, Flow<T,T> &flow2)
+Flow<T, T>& operator==(Flow<T, T>& flow1, Flow<T, T>& flow2)
 {
     flow1.subscribe(flow2);
     flow2.subscribe(flow1);
@@ -200,90 +178,73 @@ Flow<T,T>& operator==(Flow<T,T> &flow1, Flow<T,T> &flow2)
 //______________________________________________________________________________
 //
 
-template <class T> class ValueFlow : public Flow<T, T>
+template <class T>
+class ValueFlow : public Flow<T, T>
 {
     T _value;
     bool _emitOnChange = true;
 
-public:
+  public:
     ValueFlow() {}
-    ValueFlow(T x)  : Flow<T,T>(),_value(x) { };
-    void request()
-    {
-        this->emit(_value);
-    }
+    ValueFlow(T x)
+        : Flow<T, T>()
+        , _value(x){};
+    void request() { this->emit(_value); }
     void onNext(const T& value)
     {
-        if (_emitOnChange) {
-            this->emit(value);
-        }
-        _value = value;
+	if(_emitOnChange) {
+	    this->emit(value);
+	}
+	_value = value;
     }
-    void emitOnChange(bool b)
-    {
-        _emitOnChange = b;
-    };
-    inline void operator=(T value)
-    {
-        onNext(value);
-    };
-    inline T operator()()
-    {
-        return _value;
-    }
+    void emitOnChange(bool b) { _emitOnChange = b; };
+    inline void operator=(T value) { onNext(value); };
+    inline T operator()() { return _value; }
 };
 //______________________________________________________________________________
 //
-template <class T> class LambdaSink : public Sink<T>
+template <class T>
+class LambdaSink : public Sink<T>
 {
     std::function<void(T)> _handler;
 
-public:
-    LambdaSink() {};
-    LambdaSink(std::function<void(T)> handler) : _handler(handler) {};
-    void handler(std::function<void(T)> handler)
-    {
-        _handler = handler;
-    };
-    void onNext(const T& event)
-    {
-        _handler(event);
-    };
+  public:
+    LambdaSink(){};
+    LambdaSink(std::function<void(T)> handler)
+        : _handler(handler){};
+    void handler(std::function<void(T)> handler) { _handler = handler; };
+    void onNext(const T& event) { _handler(event); };
 };
 //________________________________________________________________________
 //
 template <class T>
-class LambdaSource : public Source< T>
+class LambdaSource : public Source<T>
 {
     std::function<T()> _handler;
 
-public:
+  public:
     LambdaSource(std::function<T()> handler)
-        : _handler(handler) {};
-    void request()
-    {
-        this->emit(_handler());
-    }
+        : _handler(handler){};
+    void request() { this->emit(_handler()); }
 };
 //______________________________________________________________________________
 //
-template <class IN, class OUT> class LambdaFlow : public Flow<IN, OUT>
+template <class IN, class OUT>
+class LambdaFlow : public Flow<IN, OUT>
 {
     std::function<OUT(IN)> _handler;
 
-public:
-    LambdaFlow() {};
-    LambdaFlow(std::function<OUT(IN)> handler) : _handler(handler) {};
-    void handler(std::function<OUT(IN)> handler)
-    {
-        _handler = handler;
-    };
+  public:
+    LambdaFlow(){};
+    LambdaFlow(std::function<OUT(IN)> handler)
+        : _handler(handler){};
+    void handler(std::function<OUT(IN)> handler) { _handler = handler; };
     void onNext(const IN& event)
     {
-        OUT out =_handler(event);
-        this->emit(out);
+	OUT out = _handler(event);
+	this->emit(out);
     };
-    void request() {};
+    void request(){};
 };
 //__________________________________________________________________________`
 //
@@ -291,19 +252,16 @@ public:
 // if value equals filter condition it's emitted
 //
 //__________________________________________________________________________
-template <class T> class Filter : public Flow<T, T>
+template <class T>
+class Filter : public Flow<T, T>
 {
     T _value;
 
-public:
-    Filter(T value)
-    {
-        _value = value;
-    }
+  public:
+    Filter(T value) { _value = value; }
     void onNext(T& in)
     {
-        if (in == _value)
-            this->emit(in);
+	if(in == _value) this->emit(in);
     }
 };
 //__________________________________________________________________________`
@@ -315,23 +273,21 @@ public:
 //__________________________________________________________________________
 #include <MedianFilter.h>
 
-template <class T, int x> class Median : public Flow<T, T>
+template <class T, int x>
+class Median : public Flow<T, T>
 {
     MedianFilter<T, x> _mf;
 
-public:
-    Median() {};
+  public:
+    Median(){};
     void onNext(const T& value)
     {
-        _mf.addSample(value);
-        if (_mf.isReady()) {
-            this->emit(_mf.getMedian());
-        }
+	_mf.addSample(value);
+	if(_mf.isReady()) {
+	    this->emit(_mf.getMedian());
+	}
     };
-    void request()
-    {
-        WARN(" not made for polling ");
-    }
+    void request() { WARN(" not made for polling "); }
 };
 
 //__________________________________________________________________________`
@@ -341,17 +297,17 @@ public:
 //
 //__________________________________________________________________________
 
-template <class T> class Router : public Flow<T, T>
+template <class T>
+class Router : public Flow<T, T>
 {
     uint32_t _idx;
 
-public:
+  public:
     void onNext(T& t)
     {
-        _idx++;
-        if (_idx > this->size())
-            _idx = 0;
-        (*this)[_idx]->onNext(t);
+	_idx++;
+	if(_idx > this->size()) _idx = 0;
+	(*this)[_idx]->onNext(t);
     }
 };
 //______________________________________________________________________________
@@ -362,16 +318,16 @@ class Thread
     std::vector<Requestable*> _requestables;
     std::vector<TimerSource*> _timers;
 #ifdef FREERTOS
-    QueueHandle_t _workQueue=0;
+    QueueHandle_t _workQueue = 0;
 #endif
 
-public:
+  public:
     void addTimer(TimerSource* ts);
     void addRequestable(Requestable& rq);
     Thread();
-    void awakeRequestable(Requestable* rq) ;
-    void awakeRequestableFromIsr(Requestable* rq) ;
-    void run()   ;
+    void awakeRequestable(Requestable* rq);
+    void awakeRequestableFromIsr(Requestable* rq);
+    void run();
     TimerSource& operator|(TimerSource& ts);
     Requestable& operator|(Requestable& af);
 };
@@ -385,17 +341,14 @@ class AtomicSource : public Source<uint32_t>
 {
     std::atomic<uint32_t> _atom;
 
-public:
-    void inc()
-    {
-        _atom++;
-    }
+  public:
+    void inc() { _atom++; }
     void request()
     {
-        if (_atom > 0) {
-            emit(_atom);
-            _atom--;
-        }
+	if(_atom > 0) {
+	    emit(_atom);
+	    _atom--;
+	}
     }
 };
 //__________________________________________________________________________`
@@ -406,27 +359,28 @@ public:
 //
 //__________________________________________________________________________
 template <class T>
-class Throttle : public Flow<T,T>
+class Throttle : public Flow<T, T>
 {
     uint32_t _delta;
     uint64_t _nextEmit;
     T _lastValue;
-public:
+
+  public:
     Throttle(uint32_t delta)
     {
-        _delta = delta;
-        _nextEmit = Sys::millis()+_delta;
+	_delta = delta;
+	_nextEmit = Sys::millis() + _delta;
     }
     void onNext(const T& value)
     {
-        uint64_t now=Sys::millis();
-        if (now > _nextEmit) {
-            this->emit(value);
-            _nextEmit=now + _delta;
-        }
-        _lastValue=value;
+	uint64_t now = Sys::millis();
+	if(now > _nextEmit) {
+	    this->emit(value);
+	    _nextEmit = now + _delta;
+	}
+	_lastValue = value;
     }
-    void request() {};
+    void request(){};
 };
 //__________________________________________________________________________`
 //
@@ -440,7 +394,7 @@ public:
 //__________________________________________________________________________
 class TimerMsg
 {
-public:
+  public:
     uint32_t id;
 };
 
@@ -451,57 +405,39 @@ class TimerSource : public Source<TimerMsg>, public Async
     uint64_t _expireTime;
     uint32_t _id;
 
-public:
-    ValueFlow<bool> run=true;
+  public:
+    ValueFlow<bool> run = true;
     TimerSource(int id, uint32_t interval, bool repeat)
     {
-        _id = id;
-        _interval = interval;
-        _repeat = repeat;
-        start();
+	_id = id;
+	_interval = interval;
+	_repeat = repeat;
+	start();
     }
     void start()
     {
-        run=true;
-        _expireTime = Sys::millis() + _interval;
+	run = true;
+	_expireTime = Sys::millis() + _interval;
     }
-    void stop()
-    {
-        run=false;
-    }
-    void interval(uint32_t i)
-    {
-        _interval = i;
-    }
+    void stop() { run = false; }
+    void interval(uint32_t i) { _interval = i; }
     void request()
     {
-//       INFO("[%X] %d request() ",this,_id);
-        if(run()) {
-            if (Sys::millis() >= _expireTime) {
-//                INFO("[%X]:%d:%llu timer emit ",this,interval(),expireTime());
-                _expireTime +=_interval;
-                this->emit({_id});
-            }
-        } else {
-            WARN(" timer not running ");
-        }
+	//       INFO("[%X] %d request() ",this,_id);
+	if(run()) {
+	    if(Sys::millis() >= _expireTime) {
+		//                INFO("[%X]:%d:%llu timer emit ",this,interval(),expireTime());
+		_expireTime += _interval;
+		this->emit({_id});
+	    }
+	} else {
+	    WARN(" timer not running ");
+	}
     }
-    uint64_t expireTime()
-    {
-        return _expireTime;
-    }
-    inline uint32_t interval()
-    {
-        return _interval;
-    }
-    void subscribeOn(Thread& thread)
-    {
-        thread.addTimer(this);
-    }
-    void observeOn(Thread& thread)
-    {
-        thread.addTimer(this);
-    }
+    uint64_t expireTime() { return _expireTime; }
+    inline uint32_t interval() { return _interval; }
+    void subscribeOn(Thread& thread) { thread.addTimer(this); }
+    void observeOn(Thread& thread) { thread.addTimer(this); }
 };
 //__________________________________________________________________________`
 //
@@ -510,22 +446,18 @@ public:
 //
 //__________________________________________________________________________
 
-template <class T> class AsyncValueFlow : public Flow<T, T>,public Async
+template <class T>
+class AsyncValueFlow : public Flow<T, T>, public Async
 {
     T _value;
 
-public:
+  public:
     void onNext(T& value)
     {
-        _value = value;
-        if ( this->observerThread() )
-            this->observerThread()->awakeRequestable(this);
+	_value = value;
+	if(this->observerThread()) this->observerThread()->awakeRequestable(this);
     }
-    void request()
-    {
-        this->emit(_value);
-    }
-
+    void request() { this->emit(_value); }
 };
 //__________________________________________________________________________`
 //
@@ -536,134 +468,129 @@ public:
 //__________________________________________________________________________
 #ifdef FREERTOS
 
-template <class T> class AsyncFlow : public Flow<T, T>,public Async
+template <class T>
+class AsyncFlow : public Flow<T, T>, public Async
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
     SemaphoreHandle_t xSemaphore = NULL;
 
-public:
+  public:
     LambdaSink<T> fromIsr;
-    AsyncFlow(uint32_t size) : _queueDepth(size)
+    AsyncFlow(uint32_t size)
+        : _queueDepth(size)
     {
-        xSemaphore = xSemaphoreCreateBinary();
-        xSemaphoreGive(xSemaphore);
-        fromIsr.handler([&](T value) {
-            onNextFromIsr(value);
-        });
+	xSemaphore = xSemaphoreCreateBinary();
+	xSemaphoreGive(xSemaphore);
+	fromIsr.handler([&](T value) { onNextFromIsr(value); });
     }
     void onNext(const T& event)
     {
-        if (xSemaphoreTake(xSemaphore, (TickType_t)10) == pdTRUE) {
-            if (_buffer.size() >= _queueDepth) {
-                _buffer.pop_front();
-                //					WARN(" buffer overflow in
-                // BufferedSink
-                //");
-            }
-            _buffer.push_back(event);
-            xSemaphoreGive(xSemaphore);
-            if ( this->observerThread() )
-                this->observerThread()->awakeRequestable(this);
-            return;
-        } else {
-            WARN(" timeout on async buffer ! ");
-        }
+	if(xSemaphoreTake(xSemaphore, (TickType_t)10) == pdTRUE) {
+	    if(_buffer.size() >= _queueDepth) {
+		_buffer.pop_front();
+		//					WARN(" buffer overflow in
+		// BufferedSink
+		//");
+	    }
+	    _buffer.push_back(event);
+	    xSemaphoreGive(xSemaphore);
+	    if(this->observerThread()) this->observerThread()->awakeRequestable(this);
+	    return;
+	} else {
+	    WARN(" timeout on async buffer ! ");
+	}
     }
-    void onNextFromIsr(T& event)   // ATTENTION !! no logging from Isr
+    void onNextFromIsr(T& event) // ATTENTION !! no logging from Isr
     {
-        BaseType_t higherPriorityTaskWoken;
-        if (xSemaphoreTakeFromISR(xSemaphore, &higherPriorityTaskWoken) == pdTRUE) {
-            if (_buffer.size() >= _queueDepth) {
-                _buffer.pop_front();
-                //					WARN(" buffer overflow in
-                // BufferedSink
-                //");
-            }
-            _buffer.push_back(event);
-            xSemaphoreGive(xSemaphore);
-            if ( this->observerThread()) this->observerThread()->awakeRequestableFromIsr(this);
-            return;
-        } else {
-            //           WARN(" timeout on async buffer ! "); // no log from ISR
-        }
+	BaseType_t higherPriorityTaskWoken;
+	if(xSemaphoreTakeFromISR(xSemaphore, &higherPriorityTaskWoken) == pdTRUE) {
+	    if(_buffer.size() >= _queueDepth) {
+		_buffer.pop_front();
+		//					WARN(" buffer overflow in
+		// BufferedSink
+		//");
+	    }
+	    _buffer.push_back(event);
+	    xSemaphoreGive(xSemaphore);
+	    if(this->observerThread()) this->observerThread()->awakeRequestableFromIsr(this);
+	    return;
+	} else {
+	    //           WARN(" timeout on async buffer ! "); // no log from ISR
+	}
     }
 
     void request()
     {
-        while(true) {
-            bool hasData = false;
-            if (xSemaphoreTake(xSemaphore, (TickType_t)10) == pdTRUE) {
-                T t;
-                if (_buffer.size()) {
-                    t = _buffer.front();
-                    _buffer.pop_front();
-                    hasData = true;
-                }
-                xSemaphoreGive(xSemaphore);
-                if (hasData) this->emit(t);
-            } else {
-                WARN(" timeout on async buffer ! ");
-            }
-            if ( !hasData) break;
-        }
+	while(true) {
+	    bool hasData = false;
+	    if(xSemaphoreTake(xSemaphore, (TickType_t)10) == pdTRUE) {
+		T t;
+		if(_buffer.size()) {
+		    t = _buffer.front();
+		    _buffer.pop_front();
+		    hasData = true;
+		}
+		xSemaphoreGive(xSemaphore);
+		if(hasData) this->emit(t);
+	    } else {
+		WARN(" timeout on async buffer ! ");
+	    }
+	    if(!hasData) break;
+	}
     }
-
 };
 #endif
 
 #ifdef ARDUINO
 
-template <class T> class AsyncFlow : public Flow<T, T>,public Async
+template <class T>
+class AsyncFlow : public Flow<T, T>, public Async
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
 
-public:
+  public:
     LambdaSink<T> fromIsr;
 
-    AsyncFlow(uint32_t size) : _queueDepth(size)
+    AsyncFlow(uint32_t size)
+        : _queueDepth(size)
     {
-        fromIsr.handler([&](T value) {
-            onNextFromIsr(value);
-        });
+	fromIsr.handler([&](T value) { onNextFromIsr(value); });
     }
     void onNext(const T& event)
     {
-        noInterrupts();
-        if (_buffer.size() >= _queueDepth) {
-            _buffer.pop_front();
-            //					WARN(" buffer overflow in
-            // BufferedSink ");
-        }
-        _buffer.push_back(event);
-        interrupts();
+	noInterrupts();
+	if(_buffer.size() >= _queueDepth) {
+	    _buffer.pop_front();
+	    //					WARN(" buffer overflow in
+	    // BufferedSink ");
+	}
+	_buffer.push_back(event);
+	interrupts();
     }
 
     void onNextFromIsr(T& event)
     {
-        if (_buffer.size() >= _queueDepth) {
-            _buffer.pop_front();
-        }
-        _buffer.push_back(event);
+	if(_buffer.size() >= _queueDepth) {
+	    _buffer.pop_front();
+	}
+	_buffer.push_back(event);
     }
 
     void request()
     {
-        noInterrupts();
-        T t;
-        bool hasData = false;
-        if (_buffer.size()) {
-            t = _buffer.front();
-            _buffer.pop_front();
-            hasData = true;
-        }
-        if (hasData)
-            this->emit(t);
-        interrupts();
+	noInterrupts();
+	T t;
+	bool hasData = false;
+	if(_buffer.size()) {
+	    t = _buffer.front();
+	    _buffer.pop_front();
+	    hasData = true;
+	}
+	if(hasData) this->emit(t);
+	interrupts();
     }
-
-
 };
 #endif
 //__________________________________________________________________________`
@@ -674,7 +601,7 @@ public:
 //
 //__________________________________________________________________________
 template <class T>
-class MovingAverage :  public Flow<T,T>
+class MovingAverage : public Flow<T, T>
 {
     double _ratio;
     std::list<T> _samples;
@@ -682,37 +609,32 @@ class MovingAverage :  public Flow<T,T>
     uint32_t _interval;
     uint32_t _sampleCount;
 
-
-public:
-    MovingAverage(uint32_t samples,uint32_t timeout )
+  public:
+    MovingAverage(uint32_t samples, uint32_t timeout)
     {
-        _sampleCount=samples;
-        _interval=timeout;
+	_sampleCount = samples;
+	_interval = timeout;
     };
     T average()
     {
-        T sum=0;
-        uint32_t count=_samples.size();
-        for(auto it=_samples.begin(); it!=_samples.end(); it++) {
-            sum+=*it;
-        }
-        if ( count==0) return 0;
-        return sum/count;
+	T sum = 0;
+	uint32_t count = _samples.size();
+	for(auto it = _samples.begin(); it != _samples.end(); it++) {
+	    sum += *it;
+	}
+	if(count == 0) return 0;
+	return sum / count;
     }
     void onNext(const T& value)
     {
-        if ( _samples.size() >_sampleCount ) _samples.pop_back();
-        _samples.push_front(value);
-        if ( Sys::millis() > _expTime ) {
-            _expTime=Sys::millis()+_interval;
-            this->emit(average());
-        }
+	if(_samples.size() > _sampleCount) _samples.pop_back();
+	_samples.push_front(value);
+	if(Sys::millis() > _expTime) {
+	    _expTime = Sys::millis() + _interval;
+	    this->emit(average());
+	}
     }
-    void request()
-    {
-        this->emit(average());
-    }
-
+    void request() { this->emit(average()); }
 };
 //__________________________________________________________________________`
 //
@@ -723,29 +645,25 @@ public:
 //__________________________________________________________________________
 
 template <class T>
-class ExponentialFilter :  public Flow<T,T>
+class ExponentialFilter : public Flow<T, T>
 {
     T _ratio;
     T _lastValue;
     T _total;
 
-public:
-    ExponentialFilter(T ratio,T total)
+  public:
+    ExponentialFilter(T ratio, T total)
     {
-        _ratio = ratio;
-        _total=total;
-        _lastValue=0;
+	_ratio = ratio;
+	_total = total;
+	_lastValue = 0;
     };
     void onNext(const T& value)
     {
-        _lastValue = (( _total - _ratio)*_lastValue + _ratio*value)/_total;
-        this->emit(_lastValue);
+	_lastValue = ((_total - _ratio) * _lastValue + _ratio * value) / _total;
+	this->emit(_lastValue);
     }
-    void request()
-    {
-        this->emit(_lastValue);
-    }
-
+    void request() { this->emit(_lastValue); }
 };
 //__________________________________________________________________________`
 //
@@ -755,179 +673,149 @@ public:
 //
 //__________________________________________________________________________
 template <class T>
-class TimeoutFlow : public Flow<T,T>
+class TimeoutFlow : public Flow<T, T>
 {
     T _defaultValue;
-public:
+
+  public:
     TimerSource timer;
-    TimeoutFlow(uint32_t timeout,T defaultValue)  : _defaultValue(defaultValue),timer(1,timeout,true)
+    TimeoutFlow(uint32_t timeout, T defaultValue)
+        : _defaultValue(defaultValue)
+        , timer(1, timeout, true)
     {
-        timer >> * new LambdaSink<TimerMsg>([&](TimerMsg tm) {
-            this->emit(_defaultValue);
-        });
+	timer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) { this->emit(_defaultValue); });
     }
     void onNext(const T& t)
     {
-        this->emit(t);
-        timer.start();
+	this->emit(t);
+	timer.start();
     };
-    void request()
-    {
-        this->emit(_defaultValue);
-    };
+    void request() { this->emit(_defaultValue); };
 };
 
-
+#ifdef ESP32_IDF
 #include "esp_system.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 
-extern nvs_handle _nvs;
+class ConfigStore
+{
+    static nvs_handle _nvs;
 
+  public:
+    static void init()
+    {
+		if ( _nvs==0) return;
+	esp_err_t err = nvs_flash_init();
+	if(err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+	    ESP_ERROR_CHECK(nvs_flash_erase());
+	    err = nvs_flash_init();
+	}
+	err = nvs_open("storage", NVS_READWRITE, &_nvs);
+	if(err != ESP_OK) WARN(" non-volatile storage open fails.");
+    }
+    bool load(const char* name,void* value,uint32_t length)
+    {
+	size_t required_size = length;
+	esp_err_t err = nvs_get_blob(_nvs, name, value, &required_size);
+	if(err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
+	return true;
+    }
+
+    bool save(const char* name,void* value,uint32_t length)
+    {
+	INFO(" Config saved : %s ", name);
+	esp_err_t err = nvs_set_blob(_nvs, name, value, length);
+	if(err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
+	nvs_commit(_nvs);
+	return true;
+    }
+	    bool load(const char* name,std::string& value)
+    {
+	char buffer[256];
+	size_t required_size = sizeof(buffer);
+	esp_err_t err = nvs_get_str(_nvs, name, buffer, &required_size);
+	if(err == ESP_OK) {
+	    INFO("found %s", name);
+	    value = buffer;
+	    return true;
+	}
+	return false;
+    }
+
+    bool save(const char* name,std::string& value)
+    {
+	char buffer[256];
+	strncpy(buffer, value.c_str(), sizeof(buffer) - 1);
+	esp_err_t err = nvs_set_str(_nvs, name, buffer);
+	if(err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
+	nvs_commit(_nvs);
+	return true;
+    }
+};
+
+#endif
 template <class T>
-class ConfigFlow : public Flow<T, T>
+class ConfigFlow : public Flow<T, T>,public ConfigStore
 {
     std::string _name;
     T _value;
 
-    static void init()
-    {
-        esp_err_t err = nvs_flash_init();
-        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-            ESP_ERROR_CHECK(nvs_flash_erase());
-            err = nvs_flash_init();
-        }
-        err = nvs_open("storage", NVS_READWRITE, &_nvs);
-        if ( err != ESP_OK ) WARN(" non-volatile storage open fails.");
-    }
-    bool load(T& value)
-    {
-        size_t required_size = sizeof(T);
-        esp_err_t  err = nvs_get_blob(_nvs, _name.c_str(), &value, &required_size);
-        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
-        return true;
-    }
-
-    bool save(T& value)
-    {
-        INFO(" Config saved : %s ",_name.c_str());
-        esp_err_t err = nvs_set_blob(_nvs, _name.c_str(), &value, sizeof(T));
-        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
-        nvs_commit(_nvs);
-        return true;
-    }
-
-public:
+  public:
     ConfigFlow(const char* name, T defaultValue)
         : _name(name)
         , _value(defaultValue)
     {
-        _value=defaultValue;
-        if ( _nvs==0 ) {
-            init();
-        };
-        if ( load(_value) ) {
-            INFO(" Config load %s : %f",_name.c_str(),_value);
-        } else {
-            INFO(" Config default %s : %f",_name.c_str(),_value);
-        }
+	_value = defaultValue;
+	    init();
+	if(load(_name.c_str(),&_value,sizeof(T))) {
+	    INFO(" Config load %s : %f", _name.c_str(), _value);
+	} else {
+	    INFO(" Config default %s : %f", _name.c_str(), _value);
+	}
     }
 
     void onNext(const T& value)
     {
-        _value=value;
-        save(_value);
-        request();
+	_value = value;
+	save(_name.c_str(),&_value,sizeof(T));
+	request();
     }
-    void request()
-    {
-        this->emit(_value);
-    }
-    inline void operator=(T value)
-    {
-        onNext(value);
-    };
-    inline T operator()()
-    {
-        return _value;
-    }
+    void request() { this->emit(_value); }
+    inline void operator=(T value) { onNext(value); };
+    inline T operator()() { return _value; }
 };
 
-template<>
-class ConfigFlow<std::string> : public Flow<std::string,std::string>
+template <>
+class ConfigFlow<std::string> : public Flow<std::string, std::string>,public ConfigStore
 {
     std::string _name;
     std::string _value;
 
-    static void init()
-    {
-        esp_err_t err = nvs_flash_init();
-        if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-            ESP_ERROR_CHECK(nvs_flash_erase());
-            err = nvs_flash_init();
-        }
-        err = nvs_open("storage", NVS_READWRITE, &_nvs);
-        if ( err != ESP_OK ) WARN(" non-volatile storage open fails.");
-    }
-
-    bool load(std::string& value)
-    {
-        char buffer[256];
-        size_t required_size = sizeof(buffer);
-        esp_err_t  err = nvs_get_str(_nvs, _name.c_str(), buffer, &required_size);
-        if (err == ESP_OK ) {
-            INFO("found %s",_name.c_str());
-            value=buffer;
-            return true;
-        }
-        return false;
-    }
-
-    bool save(std::string& value)
-    {
-        char buffer[256];
-        strncpy(buffer,value.c_str(),sizeof(buffer)-1);
-        esp_err_t  err = nvs_set_str(_nvs, _name.c_str(), buffer);
-        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return false;
-        nvs_commit(_nvs);
-        return true;
-    }
-
-
-
-public:
+  public:
     ConfigFlow(const char* name, const char* defaultValue)
         : _name(name)
         , _value(defaultValue)
     {
-        _value=defaultValue;
-        if ( _nvs==0 ) {
-            init();
-        }
-        if ( load(_value) ) {
-            INFO(" Config load %s : %s",_name.c_str(),_value.c_str());
-        } else {
-            INFO(" Config default %s : %s",_name.c_str(),_value.c_str());
-        }
+	_value = defaultValue;
+	init();
+	if(load(_name.c_str(),_value)) {
+	    INFO(" Config load %s : %s", _name.c_str(), _value.c_str());
+	} else {
+	    INFO(" Config default %s : %s", _name.c_str(), _value.c_str());
+	}
     };
     void onNext(const std::string& value)
     {
-        _value=value;
-        save(_value);
+	_value = value;
+	save(_name.c_str(),_value);
     }
-    void request()
-    {
-        this->emit(_value);
-    }
+    void request() { this->emit(_value); }
     inline void operator=(const char* value)
     {
-        _value=value;
-        save(_value);
+	_value = value;
+	save(_name.c_str(),_value);
     };
-    inline const char* operator()()
-    {
-        return _value.c_str();
-    }
+    inline const char* operator()() { return _value.c_str(); }
 };
-
 #endif // STREAMS_H

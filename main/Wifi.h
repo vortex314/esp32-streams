@@ -1,5 +1,6 @@
 #ifndef WIFI_H
 #define WIFI_H
+#define ESP_IDF
 
 #include <Log.h>
 #include <Streams.h>
