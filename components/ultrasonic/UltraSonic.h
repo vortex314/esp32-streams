@@ -5,9 +5,8 @@
 #include <Hardware.h>
 #include <Log.h>
 #include <Streams.h>
-#include <Mqtt.h>
 
-class UltraSonic : public TimerSource ,public Sink<TimerMsg> {
+class UltraSonic : public TimerSource,public Sink<TimerMsg> {
 		Connector* _connector;
 		HCSR04* _hcsr;
 

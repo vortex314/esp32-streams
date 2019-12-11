@@ -3,7 +3,11 @@
 #include <Hardware.h>
 #include <Log.h>
 #include <Streams.h>
+#ifdef MQTT_SERIAL
+#include <MqttSerial.h>
+#else
 #include <Mqtt.h>
+#endif
 
 class Neo6m : public Source<MqttMessage> {
 		Connector* _connector;
