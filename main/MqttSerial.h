@@ -197,7 +197,6 @@ class MqttSerial : public Sink<TimerMsg>, public Flow<MqttMessage, MqttMessage>
 	newFlow->mqttOut >> outgoing;
 	return *newFlow;
     }
-    void observeOn(Thread& thread);
 };
 
 

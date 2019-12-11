@@ -82,27 +82,25 @@ class Source : public Requestable
   protected:
     uint32_t size() { return _observers.size(); }
     Observer<T>* operator[](uint32_t idx) { return static_cast<Observer<T>*>(_observers[idx]); }
+    Thread* _observerThread = 0;
 
   public:
     virtual void subscribe(Observer<T>& observer) { _observers.push_back((void*)&observer); }
 
     void emit(const T& t)
     {
-	for(void* pv : _observers) {
-	    Observer<T>* pObserver = static_cast<Observer<T>*>(pv);
-	    pObserver->onNext(t);
-	}
+	if(_observerThread)
+	    _observerThread->awakeRequestable(this);
+	else
+	    for(void* pv : _observers) {
+		Observer<T>* pObserver = static_cast<Observer<T>*>(pv);
+		pObserver->onNext(t);
+	    }
     }
-};
-
-class Async
-{
-    Thread* _observerThread = 0;
-
-  public:
     void observeOn(Thread& thread) { _observerThread = &thread; }
     Thread* observerThread() { return _observerThread; }
 };
+
 
 // A flow can be both Sink and Source. Most of the time it will be in the middle
 // of a stream
@@ -398,7 +396,7 @@ class TimerMsg
     uint32_t id;
 };
 
-class TimerSource : public Source<TimerMsg>, public Async
+class TimerSource : public Source<TimerMsg>
 {
     uint32_t _interval;
     bool _repeat;
@@ -447,7 +445,7 @@ class TimerSource : public Source<TimerMsg>, public Async
 //__________________________________________________________________________
 
 template <class T>
-class AsyncValueFlow : public Flow<T, T>, public Async
+class AsyncValueFlow : public Flow<T, T>
 {
     T _value;
 
@@ -469,7 +467,7 @@ class AsyncValueFlow : public Flow<T, T>, public Async
 #ifdef FREERTOS
 
 template <class T>
-class AsyncFlow : public Flow<T, T>, public Async
+class AsyncFlow : public Flow<T, T>
 {
     std::deque<T> _buffer;
     uint32_t _queueDepth;
@@ -705,7 +703,7 @@ class ConfigStore
   public:
     static void init()
     {
-		if ( _nvs==0) return;
+	if(_nvs == 0) return;
 	esp_err_t err = nvs_flash_init();
 	if(err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
 	    ESP_ERROR_CHECK(nvs_flash_erase());
@@ -714,7 +712,7 @@ class ConfigStore
 	err = nvs_open("storage", NVS_READWRITE, &_nvs);
 	if(err != ESP_OK) WARN(" non-volatile storage open fails.");
     }
-    bool load(const char* name,void* value,uint32_t length)
+    bool load(const char* name, void* value, uint32_t length)
     {
 	size_t required_size = length;
 	esp_err_t err = nvs_get_blob(_nvs, name, value, &required_size);
@@ -722,7 +720,7 @@ class ConfigStore
 	return true;
     }
 
-    bool save(const char* name,void* value,uint32_t length)
+    bool save(const char* name, void* value, uint32_t length)
     {
 	INFO(" Config saved : %s ", name);
 	esp_err_t err = nvs_set_blob(_nvs, name, value, length);
@@ -730,7 +728,7 @@ class ConfigStore
 	nvs_commit(_nvs);
 	return true;
     }
-	    bool load(const char* name,std::string& value)
+    bool load(const char* name, std::string& value)
     {
 	char buffer[256];
 	size_t required_size = sizeof(buffer);
@@ -743,7 +741,7 @@ class ConfigStore
 	return false;
     }
 
-    bool save(const char* name,std::string& value)
+    bool save(const char* name, std::string& value)
     {
 	char buffer[256];
 	strncpy(buffer, value.c_str(), sizeof(buffer) - 1);
@@ -756,7 +754,7 @@ class ConfigStore
 
 #endif
 template <class T>
-class ConfigFlow : public Flow<T, T>,public ConfigStore
+class ConfigFlow : public Flow<T, T>, public ConfigStore
 {
     std::string _name;
     T _value;
@@ -767,8 +765,8 @@ class ConfigFlow : public Flow<T, T>,public ConfigStore
         , _value(defaultValue)
     {
 	_value = defaultValue;
-	    init();
-	if(load(_name.c_str(),&_value,sizeof(T))) {
+	init();
+	if(load(_name.c_str(), &_value, sizeof(T))) {
 	    INFO(" Config load %s : %f", _name.c_str(), _value);
 	} else {
 	    INFO(" Config default %s : %f", _name.c_str(), _value);
@@ -778,7 +776,7 @@ class ConfigFlow : public Flow<T, T>,public ConfigStore
     void onNext(const T& value)
     {
 	_value = value;
-	save(_name.c_str(),&_value,sizeof(T));
+	save(_name.c_str(), &_value, sizeof(T));
 	request();
     }
     void request() { this->emit(_value); }
@@ -787,7 +785,7 @@ class ConfigFlow : public Flow<T, T>,public ConfigStore
 };
 
 template <>
-class ConfigFlow<std::string> : public Flow<std::string, std::string>,public ConfigStore
+class ConfigFlow<std::string> : public Flow<std::string, std::string>, public ConfigStore
 {
     std::string _name;
     std::string _value;
@@ -799,7 +797,7 @@ class ConfigFlow<std::string> : public Flow<std::string, std::string>,public Con
     {
 	_value = defaultValue;
 	init();
-	if(load(_name.c_str(),_value)) {
+	if(load(_name.c_str(), _value)) {
 	    INFO(" Config load %s : %s", _name.c_str(), _value.c_str());
 	} else {
 	    INFO(" Config default %s : %s", _name.c_str(), _value.c_str());
@@ -808,13 +806,13 @@ class ConfigFlow<std::string> : public Flow<std::string, std::string>,public Con
     void onNext(const std::string& value)
     {
 	_value = value;
-	save(_name.c_str(),_value);
+	save(_name.c_str(), _value);
     }
     void request() { this->emit(_value); }
     inline void operator=(const char* value)
     {
 	_value = value;
-	save(_name.c_str(),_value);
+	save(_name.c_str(), _value);
     };
     inline const char* operator()() { return _value.c_str(); }
 };
