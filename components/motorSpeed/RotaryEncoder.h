@@ -5,7 +5,6 @@
 #include <Log.h>
 #include <Streams.h>
 #include <coroutine.h>
-#include <Mqtt.h>
 #include "driver/mcpwm.h"
 #include "driver/pcnt.h"
 #include "soc/mcpwm_reg.h"

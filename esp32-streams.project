@@ -39,6 +39,8 @@
     </VirtualDirectory>
   </VirtualDirectory>
   <VirtualDirectory Name="main">
+    <File Name="main/MqttSerial.cpp"/>
+    <File Name="main/MqttSerial.h"/>
     <File Name="main/MedianFilter.h"/>
     <File Name="main/Concept.cpp"/>
     <File Name="main/coroutine.cpp"/>
@@ -107,7 +109,7 @@
       <CustomBuild Enabled="yes">
         <RebuildCommand/>
         <CleanCommand>make clean</CleanCommand>
-        <BuildCommand>make REMOTE</BuildCommand>
+        <BuildCommand>make DRIVE_SERIAL</BuildCommand>
         <PreprocessFileCommand/>
         <SingleFileCommand/>
         <MakefileGenerationCommand/>
