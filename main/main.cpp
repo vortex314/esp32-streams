@@ -182,7 +182,7 @@ extern "C" void app_main(void)
     mqtt.connected >> led.blinkSlow;
     mqtt.connected >> slowPoller.run;
 
-    mqttThread | mqtt;
+mqtt.observeOn(mqttThread);
     mqttThread | led;
     mqttThread | slowPoller;
 

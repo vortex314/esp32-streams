@@ -73,6 +73,28 @@ class Requestable
     virtual void request() = 0;
     //{ WARN(" I am abstract Requestable. Don't call me."); };
 };
+//______________________________________________________________________________
+//
+class TimerSource;
+class Thread
+{
+    std::vector<TimerSource*> _timers;
+    void* _tcb;
+#ifdef FREERTOS
+    QueueHandle_t _workQueue = 0;
+#endif
+
+  public:
+    void addTimer(TimerSource* ts);
+    void addRequestable(Requestable& rq);
+    Thread();
+    void awakeRequestable(Requestable* rq);
+    void awakeRequestableFromIsr(Requestable* rq);
+    void run();
+    TimerSource& operator|(TimerSource& ts);
+    void* id();
+    static void* currentId();
+};
 // not sure these extra inheritance are useful
 template <class T>
 class Source : public Requestable
@@ -89,18 +111,17 @@ class Source : public Requestable
 
     void emit(const T& t)
     {
-	if(_observerThread)
-	    _observerThread->awakeRequestable(this);
-	else
+	if((_observerThread == 0) || (_observerThread && _observerThread->id() == Thread::currentId()))
 	    for(void* pv : _observers) {
 		Observer<T>* pObserver = static_cast<Observer<T>*>(pv);
 		pObserver->onNext(t);
 	    }
+	else
+	    _observerThread->awakeRequestable(this);
     }
-    void observeOn(Thread& thread) { _observerThread = &thread; }
+    Source<T>& observeOn(Thread& thread) { _observerThread = &thread; return *this;}
     Thread* observerThread() { return _observerThread; }
 };
-
 
 // A flow can be both Sink and Source. Most of the time it will be in the middle
 // of a stream
@@ -285,7 +306,7 @@ class Median : public Flow<T, T>
 	    this->emit(_mf.getMedian());
 	}
     };
-    void request() { WARN(" not made for polling "); }
+    void request() { this->emit(_mf.getMedian()); }
 };
 
 //__________________________________________________________________________`
@@ -308,27 +329,7 @@ class Router : public Flow<T, T>
 	(*this)[_idx]->onNext(t);
     }
 };
-//______________________________________________________________________________
-//
-class TimerSource;
-class Thread
-{
-    std::vector<Requestable*> _requestables;
-    std::vector<TimerSource*> _timers;
-#ifdef FREERTOS
-    QueueHandle_t _workQueue = 0;
-#endif
 
-  public:
-    void addTimer(TimerSource* ts);
-    void addRequestable(Requestable& rq);
-    Thread();
-    void awakeRequestable(Requestable* rq);
-    void awakeRequestableFromIsr(Requestable* rq);
-    void run();
-    TimerSource& operator|(TimerSource& ts);
-    Requestable& operator|(Requestable& af);
-};
 
 //__________________________________________________________________________`
 //
@@ -378,7 +379,7 @@ class Throttle : public Flow<T, T>
 	}
 	_lastValue = value;
     }
-    void request(){};
+    void request() { this->emit(_lastValue); };
 };
 //__________________________________________________________________________`
 //
@@ -404,7 +405,7 @@ class TimerSource : public Source<TimerMsg>
     uint32_t _id;
 
   public:
-    ValueFlow<bool> run = true;
+    ValueFlow<bool> running = true;
     TimerSource(int id, uint32_t interval, bool repeat)
     {
 	_id = id;
@@ -414,15 +415,15 @@ class TimerSource : public Source<TimerMsg>
     }
     void start()
     {
-	run = true;
+	running = true;
 	_expireTime = Sys::millis() + _interval;
     }
-    void stop() { run = false; }
+    void stop() { running = false; }
     void interval(uint32_t i) { _interval = i; }
     void request()
     {
 	//       INFO("[%X] %d request() ",this,_id);
-	if(run()) {
+	if(running()) {
 	    if(Sys::millis() >= _expireTime) {
 		//                INFO("[%X]:%d:%llu timer emit ",this,interval(),expireTime());
 		_expireTime += _interval;

@@ -8,21 +8,12 @@ TimerSource& Thread::operator|(TimerSource& ts)
     return ts;
 }
 
-Requestable& Thread::operator|(Requestable& rq)
-{
-    addRequestable(rq);
-    return rq;
-}
 
 void Thread::addTimer(TimerSource* ts)
 {
     _timers.push_back(ts);
 }
 
-void Thread::addRequestable(Requestable& rq)
-{
-    _requestables.push_back(&rq);
-};
 
 #ifdef ARDUINO
 
@@ -40,7 +31,7 @@ void Thread::run() // ARDUINO single thread version ==> continuous polling
 
 #endif
 #ifdef FREERTOS
-
+extern void *pxCurrentTCB;
 Thread::Thread()
 {
     _workQueue = xQueueCreate(20, sizeof(Requestable*));
@@ -60,9 +51,18 @@ void Thread::awakeRequestableFromIsr(Requestable* rq)
         }
 };
 
+void* Thread::id() {
+	return _tcb;
+}
+
+void* Thread::currentId(){
+	return pxCurrentTCB;
+}
+
 
 void Thread::run() // FREERTOS block thread until awake or timer expired.
 {
+	_tcb=currentId();
     while(true) {
         uint64_t now= Sys::millis();
         uint64_t expTime = now + 5000;
