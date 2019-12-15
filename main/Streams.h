@@ -83,8 +83,8 @@ class Thread {
 		void addTimer(TimerSource* ts);
 		void addRequestable(Requestable& rq);
 		Thread();
-		void awakeRequestable(Requestable* rq);
-		void awakeRequestableFromIsr(Requestable* rq);
+		int awakeRequestable(Requestable* rq);
+		int awakeRequestableFromIsr(Requestable* rq);
 		void run();
 		TimerSource& operator|(TimerSource& ts);
 		void* id();
