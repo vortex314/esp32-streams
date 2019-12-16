@@ -194,10 +194,17 @@ extern "C" void app_main(void)
 {
     //    ESP_ERROR_CHECK(nvs_flash_erase());
 
+<<<<<<< Updated upstream
     Sys::hostname(S(HOSTNAME));
     systemHostname = S(HOSTNAME);
     systemBuild = __DATE__ " " __TIME__;
     Poller& slowPoller = *new Poller(100);
+=======
+	Sys::hostname(S(HOSTNAME));
+	systemHostname = S(HOSTNAME);
+	systemBuild = __DATE__ " " __TIME__;
+	Poller& slowPoller = *new Poller(100);
+>>>>>>> Stashed changes
 
 #ifdef MQTT_SERIAL
     MqttSerial& mqtt = *new MqttSerial();
