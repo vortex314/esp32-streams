@@ -12,82 +12,99 @@
 #define STRINGIFY(X) #X
 #define S(X) STRINGIFY(X)
 template <class T>
-class ChangeFlow : public Flow<T, T> {
-		T _value;
-		int _delta;
-		bool _emitOnChange = true;
+class ChangeFlow : public Flow<T, T>
+{
+	T _value;
+	int _delta;
+	bool _emitOnChange = true;
 
-	public:
-		ChangeFlow(int delta) {
-			_delta=delta;
-		}
-		/*    ChangeFlow(T x)
-		        : Flow<T, T>()
-		        , _value(x) {};*/
-		void request() {
-			this->emit(_value);
-		}
-		void onNext(const T& value) {
-			if(_emitOnChange && abs(value - _value)>_delta) {
+public:
+	ChangeFlow(int delta)
+	{
+		_delta=delta;
+	}
+	/*    ChangeFlow(T x)
+	        : Flow<T, T>()
+	        , _value(x) {};*/
+	void request()
+	{
+		this->emit(_value);
+	}
+	void onNext(const T& value)
+	{
+		if(_emitOnChange && abs(value - _value)>_delta)
+			{
 				this->emit(value);
 			}
-			_value = value;
-		}
-		void emitOnChange(bool b) {
-			_emitOnChange = b;
-		};
-		inline void operator=(T value) {
-			onNext(value);
-		};
-		inline T operator()() {
-			return _value;
-		}
+		_value = value;
+	}
+	void emitOnChange(bool b)
+	{
+		_emitOnChange = b;
+	};
+	inline void operator=(T value)
+	{
+		onNext(value);
+	};
+	inline T operator()()
+	{
+		return _value;
+	}
 };
 //______________________________________________________________________
 //
 template <class T>
-class Wait : public Flow<T, T> {
-		uint64_t _last;
-		uint32_t _delay;
+class Wait : public Flow<T, T>
+{
+	uint64_t _last;
+	uint32_t _delay;
 
-	public:
-		Wait(uint32_t delay)
-			: _delay(delay) {
-		}
-		void onNext(T value) {
-			uint32_t delta = Sys::millis() - _last;
-			if(delta > _delay) {
+public:
+	Wait(uint32_t delay)
+		: _delay(delay)
+	{
+	}
+	void onNext(T value)
+	{
+		uint32_t delta = Sys::millis() - _last;
+		if(delta > _delay)
+			{
 				this->emit(value);
 			}
-			_last = Sys::millis();
-		}
+		_last = Sys::millis();
+	}
 };
 //______________________________________________________________________
 //
-class Poller : public TimerSource, public Sink<TimerMsg> {
-		std::vector<Requestable*> _requestables;
-		uint32_t _idx = 0;
+class Poller : public TimerSource, public Sink<TimerMsg>
+{
+	std::vector<Requestable*> _requestables;
+	uint32_t _idx = 0;
 
-	public:
-		ValueFlow<bool> run = false;
-		Poller(uint32_t iv)
-			: TimerSource(1, 1000, true) {
-			interval(iv);
-			*this >> *this;
-		};
+public:
+	ValueFlow<bool> run = false;
+	Poller(uint32_t iv)
+		: TimerSource(1, 1000, true)
+	{
+		interval(iv);
+		*this >> *this;
+	};
 
-		void onNext(const TimerMsg& tm) {
-			_idx++;
-			if(_idx >= _requestables.size()) _idx = 0;
-			if(_requestables.size() && run()) {
+	void onNext(const TimerMsg& tm)
+	{
+		_idx++;
+		if(_idx >= _requestables.size()) _idx = 0;
+		if(_requestables.size() && run())
+			{
 				_requestables[_idx]->request();
 			}
-		}
+	}
 
-		Poller& operator()(Requestable& rq) {
-			_requestables.push_back(&rq);
-			return *this;
-		}
+	Poller& operator()(Requestable& rq)
+	{
+		_requestables.push_back(&rq);
+		return *this;
+	}
 };
 // ___________________________________________________________________________
 //
@@ -98,17 +115,20 @@ class Poller : public TimerSource, public Sink<TimerMsg> {
 #define PRO_CPU 0
 #define APP_CPU 1
 template <class T1, class T2>
-class Templ : Flow<T1, T1>, Flow<T2, T2> {
-	public:
-		void onNext(const T1& t1) {
-			T2 t2;
-			Flow<T2, T2>::emit(t2);
-		}
-		void onNext(const T2& t2) {
-			T1 t1;
-			Flow<T1, T1>::emit(t1);
-		}
-		void request() {}
+class Templ : Flow<T1, T1>, Flow<T2, T2>
+{
+public:
+	void onNext(const T1& t1)
+	{
+		T2 t2;
+		Flow<T2, T2>::emit(t2);
+	}
+	void onNext(const T2& t2)
+	{
+		T1 t1;
+		Flow<T1, T1>::emit(t1);
+	}
+	void request() {}
 };
 Templ<float, MqttMessage> templ;
 //______________________________________________________________________
@@ -160,10 +180,12 @@ LedLight ledRight(23);
 
 ValueFlow<std::string> systemBuild;
 ValueFlow<std::string> systemHostname;
-LambdaSource<uint32_t> systemHeap([]() {
+LambdaSource<uint32_t> systemHeap([]()
+{
 	return xPortGetFreeHeapSize();
 });
-LambdaSource<uint64_t> systemUptime([]() {
+LambdaSource<uint64_t> systemUptime([]()
+{
 	return Sys::millis();
 });
 
@@ -171,7 +193,8 @@ Thread mqttThread;
 Thread thisThread;
 Thread motorThread;
 
-extern "C" void app_main(void) {
+extern "C" void app_main(void)
+{
 	//    ESP_ERROR_CHECK(nvs_flash_erase());
 
 	Sys::hostname(S(HOSTNAME));
@@ -272,7 +295,8 @@ extern "C" void app_main(void) {
 	slowPoller(motor.KI)(motor.KP)(motor.KD)(motor.rpmTarget);
 
 	motor.observeOn(motorThread);
-	xTaskCreatePinnedToCore([](void*) {
+	xTaskCreatePinnedToCore([](void*)
+	{
 		INFO("motorThread started.");
 		motorThread.run();
 	}, "motor", 20000, NULL, 17, NULL, APP_CPU);
@@ -287,16 +311,19 @@ extern "C" void app_main(void) {
 	servo.KP == mqtt.topic<float>("servo/KP");
 	servo.KD == mqtt.topic<float>("servo/KD");
 	servo.angleTarget == mqtt.topic<int>("servo/angleTarget");
+	servo.deviceMessage >> mqtt.toTopic<tsd::string>("message");
 	slowPoller(servo.KI)(servo.KP)(servo.KD)(servo.angleTarget);
 
 	servo.observeOn(servoThread);
-	xTaskCreatePinnedToCore([](void*) {
+	xTaskCreatePinnedToCore([](void*)
+	{
 		INFO("servoThread started.");
 		servoThread.run();
 	}, "servo", 20000, NULL, 17, NULL, APP_CPU);
 #endif
 
-	xTaskCreatePinnedToCore([](void*) {
+	xTaskCreatePinnedToCore([](void*)
+	{
 		INFO("mqttThread started.");
 		mqttThread.run();
 	}, "mqtt", 20000, NULL, 17, NULL, PRO_CPU);

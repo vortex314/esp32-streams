@@ -29,6 +29,9 @@ class MotorSpeed
     TimerSource _controlTimer;
 
 public:
+	typedef enum { OFF,  INIT, ON, STANDBY } State;
+	ValueFlow<State> deviceState=OFF;
+	ValueFlow<std::string> deviceMessage="";
     ValueFlow<int> rpmTarget=40;
     ConfigFlow<float> KP= {"motor/KP",0.05};
     ConfigFlow<float> KI= {"motor/KI",0.2};
