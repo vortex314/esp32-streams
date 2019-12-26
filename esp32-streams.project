@@ -39,10 +39,11 @@
     </VirtualDirectory>
   </VirtualDirectory>
   <VirtualDirectory Name="main">
+    <File Name="main/Device.cpp"/>
+    <File Name="main/Device.h"/>
     <File Name="main/MqttSerial.cpp"/>
     <File Name="main/MqttSerial.h"/>
     <File Name="main/MedianFilter.h"/>
-    <File Name="main/Concept.cpp"/>
     <File Name="main/coroutine.cpp"/>
     <File Name="main/coroutine.h"/>
     <File Name="main/LedBlinker.cpp"/>

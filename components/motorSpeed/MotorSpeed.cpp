@@ -14,7 +14,6 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 
 {
 	//_rpmMeasuredFilter = new AverageFilter<float>();
-	deviceState=INIT;
 	rpmTarget = 0;
 	_bts7960.setPwmUnit(0);
 	integral.emitOnChange(false);
@@ -22,8 +21,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 	proportional.emitOnChange(false);
 	pwm.emitOnChange(false);
 
-	_reportTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm)
-	{
+	_reportTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
 		integral.request();
 		derivative.request();
 		proportional.request();
@@ -34,52 +32,43 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 		     KI() * integral(),
 		     KD() * derivative());
 
-		if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 )
-			{
-				deviceState=STANDBY;
-				deviceMessage="STANDBY : abs(pwm) > 20 and no rotation detected ? Wiring ? Stalled ? "
-			}
+		if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 ) {
+			deviceState=STOPPED;
+			deviceMessage="STOPPED : abs(pwm) > 20 and no rotation detected ? Wiring ? Stalled ? ";
+		}
 	});
 
-	_pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm)
-	{
+	_pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
 		INFO("next pulse");
 		pulse();
 	});
 
-	auto pidCalc = new LambdaSink<int>([&](int rpm)
-	{
-		if ( state()==ON )
-			{
-				static float newOutput;
-				error = rpmTarget() - rpm;
-				newOutput = PID(error(), CONTROL_INTERVAL_MS/1000.0);
-				if (rpmTarget() == 0)
-					{
-						newOutput = 0;
-						integral=0;
-					}
-				pwm = newOutput;
-				_bts7960.setOutput(pwm());
+	auto pidCalc = new LambdaSink<int>([&](int rpm) {
+		if ( isRunning() ) {
+			static float newOutput;
+			error = rpmTarget() - rpm;
+			newOutput = PID(error(), CONTROL_INTERVAL_MS/1000.0);
+			if (rpmTarget() == 0) {
+				newOutput = 0;
+				integral=0;
 			}
-		else
-			{
-				_bts7960.setOutput(0);
-			}
+			pwm = newOutput;
+			_bts7960.setOutput(pwm());
+		} else {
+			_bts7960.setOutput(0);
+		}
 	});
 
 	rpmMeasured >> *pidCalc ;
 	rpmMeasured.emitOnChange(false);
-	_controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tick)
-	{
+	_controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tick) {
 		rpmMeasured.request();
 	});
 
-	rpmTarget >> *new LambdaSink<int>([](int v)
-	{
+	rpmTarget >> *new LambdaSink<int>([](int v) {
 		INFO(" rpmTarget : %d ",v);
 	});
-	deviceState=ON;
+	deviceState=RUNNING;
 
 }
 
@@ -90,18 +79,15 @@ MotorSpeed::MotorSpeed(Connector* uext)
 
 MotorSpeed::~MotorSpeed() {}
 
-void MotorSpeed::init()
-{
-	if (_bts7960.initialize())
-		{
-			WARN(" initialize motor failed ");
-			deviceState=STANDBY;
-			deviceMessage="STANDBY : BTS7960 init failed ";
-		}
+void MotorSpeed::init() {
+	if (_bts7960.initialize()) {
+		WARN(" initialize motor failed ");
+		deviceState=STOPPED;
+		deviceMessage="STOPPED : BTS7960 init failed ";
+	}
 }
 
-void MotorSpeed::observeOn(Thread& t)
-{
+void MotorSpeed::observeOn(Thread& t) {
 	_reportTimer.observeOn(t);
 //    _pulseTimer.observeOn(t);
 	_controlTimer.observeOn(t);
@@ -109,8 +95,7 @@ void MotorSpeed::observeOn(Thread& t)
 
 
 
-void MotorSpeed::pulse()
-{
+void MotorSpeed::pulse() {
 
 	static uint32_t pulse = 0;
 	static int rpmTargets[] = {0,  60, 120,  180, 120, 60, 0,  -60, -120,  -180, -120, -60};
@@ -125,8 +110,7 @@ void MotorSpeed::pulse()
 }
 
 
-float MotorSpeed::PID(float err, float interval)
-{
+float MotorSpeed::PID(float err, float interval) {
 	integral = integral() + (err * interval);
 	derivative = (err - _errorPrior) / interval;
 	float integralPart = KI() * integral();
