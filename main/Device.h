@@ -6,18 +6,14 @@
 class Device {
 
 	public:
-		typedef enum {
-			STOPPED,
-			RUNNING
-		} State;
-		ValueFlow<State> deviceState=STOPPED;
+		ValueFlow<bool> running=false;
 		ValueFlow<std::string> deviceMessage;
 		Device();
 		~Device();
-		void run() { deviceMessage="OK"; deviceState=RUNNING;};
-		void stop(const char* reason) { deviceMessage=reason; deviceState=STOPPED; }
-		bool isRunning() { return deviceState()==RUNNING;}
-		bool isStopped() { return deviceState()==STOPPED; }
+		void run() { deviceMessage="OK"; running=true;};
+		void stop(const char* reason) { deviceMessage=reason; running=false; }
+		bool isRunning() { return running();}
+		bool isStopped() { return !running(); }
 
 };
 

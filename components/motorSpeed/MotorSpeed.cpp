@@ -32,10 +32,10 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 		     KI() * integral(),
 		     KD() * derivative());
 
-		if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 ) {
-			deviceState=STOPPED;
+	/*	if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 ) {
+			running=false;
 			deviceMessage="STOPPED : abs(pwm) > 20 and no rotation detected ? Wiring ? Stalled ? ";
-		}
+		}*/
 	});
 
 	_pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
@@ -68,7 +68,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 	rpmTarget >> *new LambdaSink<int>([](int v) {
 		INFO(" rpmTarget : %d ",v);
 	});
-	deviceState=RUNNING;
+	running=true;
 
 }
 
@@ -82,7 +82,7 @@ MotorSpeed::~MotorSpeed() {}
 void MotorSpeed::init() {
 	if (_bts7960.initialize()) {
 		WARN(" initialize motor failed ");
-		deviceState=STOPPED;
+		running=false;
 		deviceMessage="STOPPED : BTS7960 init failed ";
 	}
 }

@@ -72,7 +72,7 @@ void MotorServo::init() {
 		angleMeasured.request();
 		current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
 		current.request();
-		INFO("%d angle %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",_potFilter.getMedian(),  angleMeasured(),angleTarget(),error(),
+		INFO("angle %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",angleMeasured(),angleTarget(),error(),
 		     pwm(),
 		     KP() * error(),
 		     KI() * integral(),

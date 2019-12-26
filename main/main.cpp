@@ -272,7 +272,9 @@ extern "C" void app_main(void) {
 	motor.KP == mqtt.topic<float>("motor/KP");
 	motor.KD == mqtt.topic<float>("motor/KD");
 	motor.rpmTarget == mqtt.topic<int>("motor/rpmTarget");
-	slowPoller(motor.KI)(motor.KP)(motor.KD)(motor.rpmTarget);
+	motor.running == mqtt.topic<bool>("motor/running");
+	motor.deviceMessage >> mqtt.toTopic<std::string>("motor/message");
+	slowPoller(motor.KI)(motor.KP)(motor.KD)(motor.rpmTarget)(motor.deviceMessage)(motor.running);
 
 	motor.observeOn(motorThread);
 	xTaskCreatePinnedToCore([](void*) {
@@ -290,8 +292,9 @@ extern "C" void app_main(void) {
 	servo.KP == mqtt.topic<float>("servo/KP");
 	servo.KD == mqtt.topic<float>("servo/KD");
 	servo.angleTarget == mqtt.topic<int>("servo/angleTarget");
-	servo.deviceMessage >> mqtt.toTopic<std::string>("message");
-	slowPoller(servo.KI)(servo.KP)(servo.KD)(servo.angleTarget);
+	servo.running == mqtt.topic<bool>("servo/running");
+	servo.deviceMessage >> mqtt.toTopic<std::string>("servo/message");
+	slowPoller(servo.KI)(servo.KP)(servo.KD)(servo.angleTarget)(servo.deviceMessage)(servo.running);
 
 	servo.observeOn(servoThread);
 	xTaskCreatePinnedToCore([](void*) {
