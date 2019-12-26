@@ -39,6 +39,10 @@ MOTOR_WIFI :
 	touch main/main.cpp
 	make DEFINE="-DMOTOR=1 -DHOSTNAME=drive"
 	
+MOTOR_SERIAL :
+	touch main/main.cpp
+	make DEFINE="-DMOTOR=1 -DMQTT_SERIAL -DHOSTNAME=drive"
+	
 SERVO_WIFI :
 	touch main/main.cpp
 	make DEFINE="-DSERVO=2 -DHOSTNAME=drive"

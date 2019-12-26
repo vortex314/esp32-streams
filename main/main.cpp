@@ -266,7 +266,7 @@ extern "C" void app_main(void) {
 
 	motor.init();
 	motor.pwm >> *new Throttle<float>(100) >> mqtt.toTopic<float>("motor/pwm");
-	motor.rpmMeasured >> *new Throttle<int>(100) >> mqtt.toTopic<int>("motor/rpmMeasured");
+	rotaryEncoder.rpmMeasured >> *new Throttle<int>(100) >> mqtt.toTopic<int>("motor/rpmMeasured");
 
 	motor.KI == mqtt.topic<float>("motor/KI");
 	motor.KP == mqtt.topic<float>("motor/KP");

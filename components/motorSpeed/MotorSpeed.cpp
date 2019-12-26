@@ -65,12 +65,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 	_controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tick) {
 		rpmMeasured.request();
 	});
-
-	rpmTarget >> *new LambdaSink<int>([](int v) {
-		INFO(" rpmTarget : %d ",v);
-	});
 	running=true;
-
 }
 
 MotorSpeed::MotorSpeed(Connector* uext)
