@@ -32,10 +32,10 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 		     KI() * integral(),
 		     KD() * derivative());
 
-	/*	if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 ) {
-			running=false;
-			deviceMessage="STOPPED : abs(pwm) > 20 and no rotation detected ? Wiring ? Stalled ? ";
-		}*/
+		/*	if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 ) {
+				running=false;
+				deviceMessage="STOPPED : abs(pwm) > 20 and no rotation detected ? Wiring ? Stalled ? ";
+			}*/
 	});
 
 	_pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
@@ -54,6 +54,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 			}
 			pwm = newOutput;
 			_bts7960.setOutput(pwm());
+			pwm.request();
 		} else {
 			_bts7960.setOutput(0);
 		}

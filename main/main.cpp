@@ -271,6 +271,7 @@ extern "C" void app_main(void) {
 	motor.KI == mqtt.topic<float>("motor/KI");
 	motor.KP == mqtt.topic<float>("motor/KP");
 	motor.KD == mqtt.topic<float>("motor/KD");
+	motor.current == mqtt.topic<float>("motor/current");
 	motor.rpmTarget == mqtt.topic<int>("motor/rpmTarget");
 	motor.running == mqtt.topic<bool>("motor/running");
 	motor.deviceMessage >> mqtt.toTopic<std::string>("motor/message");
@@ -291,6 +292,7 @@ extern "C" void app_main(void) {
 	servo.KI == mqtt.topic<float>("servo/KI");
 	servo.KP == mqtt.topic<float>("servo/KP");
 	servo.KD == mqtt.topic<float>("servo/KD");
+	servo.current == mqtt.topic<float>("servo/current");
 	servo.angleTarget == mqtt.topic<int>("servo/angleTarget");
 	servo.running == mqtt.topic<bool>("servo/running");
 	servo.deviceMessage >> mqtt.toTopic<std::string>("servo/message");
