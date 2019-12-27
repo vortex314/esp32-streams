@@ -72,15 +72,16 @@ void MotorServo::init() {
 		angleMeasured.request();
 		current = _bts7960.measureCurrentLeft()+ _bts7960.measureCurrentRight();
 		current.request();
-		INFO("angle %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f ",angleMeasured(),angleTarget(),error(),
+		INFO("angle %d/%d = %.2f => pwm : %.2f = %.2f + %.2f + %.2f %d ",angleMeasured(),angleTarget(),error(),
 		     pwm(),
 		     KP() * error(),
 		     KI() * integral(),
-		     KD() * derivative());
+		     KD() * derivative(),
+		     _adcPot.getValue());
 		_reportTimer.start();
 	});
 	if ( _adcPot.getValue() <100 || _adcPot.getValue() > 900 ) {
-		stop("STANDBY : Potentiometer out of range value. Not connected ? ");
+		stop("Potentiometer out of range value. Not connected ? ");
 	} else {
 		run();
 	}

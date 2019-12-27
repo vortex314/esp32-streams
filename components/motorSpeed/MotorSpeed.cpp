@@ -31,6 +31,9 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 		     KP() * error(),
 		     KI() * integral(),
 		     KD() * derivative());
+		if( current() < 0.15 ) {
+			stop("no base current detected.");
+		};
 
 		/*	if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 ) {
 				running=false;

@@ -10,8 +10,8 @@ class Device {
 		ValueFlow<std::string> deviceMessage;
 		Device();
 		~Device();
-		void run() { deviceMessage="OK"; running=true;};
-		void stop(const char* reason) { deviceMessage=reason; running=false; }
+		void run() { deviceMessage="RUNNING"; running=true;};
+		void stop(const char* reason) { std::string s="STOPPED:"; s+=reason; deviceMessage=s; running=false; }
 		bool isRunning() { return running();}
 		bool isStopped() { return !running(); }
 
