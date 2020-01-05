@@ -55,6 +55,10 @@ DRIVE_SERIAL :
 	touch main/main.cpp
 	make DEFINE="-DMOTOR=1 -DSERVO=2 -DHOSTNAME=drive -DMQTT_SERIAL" 
 	
+DRIVE_SERIAL2 :
+	touch main/main.cpp
+	make DEFINE="-DMOTOR=2 -DHOSTNAME=drive2 -DMQTT_SERIAL"
+	
 TAG_WIFI :
 	touch main/main.cpp
 	make DEFINE="-DDWM1000_TAG=2 -DHOSTNAME=tag"

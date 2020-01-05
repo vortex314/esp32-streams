@@ -110,7 +110,7 @@
       <CustomBuild Enabled="yes">
         <RebuildCommand/>
         <CleanCommand>make clean</CleanCommand>
-        <BuildCommand>make DRIVE_SERIAL</BuildCommand>
+        <BuildCommand>make DRIVE_SERIAL2</BuildCommand>
         <PreprocessFileCommand/>
         <SingleFileCommand/>
         <MakefileGenerationCommand/>
