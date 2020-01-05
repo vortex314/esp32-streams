@@ -1,6 +1,32 @@
 #include "BTS7960.h"
 #include <Log.h>
 #include <Register.h>
+static Register pwm_fh0_cfg0("PWM_FH0_CFG0_REG","- - - - - - - - - - - - - - - - - - - - - - - - - - - "
+                             "PWM_FH0_FORCE_OST "
+                             "PWM_FH0_FORCE_CBC "
+                             "+ PWM_FH0_CBCPULSE "
+                             "PWM_FH0_CLR_OST");
+static Register pwm_fh0_status_reg("PWM_FH0_STATUS_REG","- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - "
+                                   "PWM_FH0_OST_ON "
+                                   "PWM_FH0_CBC_ON");
+
+static Register pwm_fh1_cfg1("PWM_FH1_CFG1_REG","- - - - - - - - - - - - - - - - - - - - - - - - - - - "
+                             "PWM_FH1_FORCE_OST "
+                             "PWM_FH1_FORCE_CBC "
+                             "+ PWM_FH1_CBCPULSE "
+                             "PWM_FH1_CLR_OST");
+static Register pwm_fh1_status_reg("PWM_FH1_STATUS_REG","- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - "
+                                   "PWM_FH1_OST_ON "
+                                   "PWM_FH1_CBC_ON");
+static Register pwm_fh2_cfg2("PWM_FH2_CFG2_REG","- - - - - - - - - - - - - - - - - - - - - - - - - - - "
+                             "PWM_FH2_FORCE_OST "
+                             "PWM_FH2_FORCE_CBC "
+                             "+ PWM_FH2_CBCPULSE "
+                             "PWM_FH2_CLR_OST");
+static Register pwm_fh2_status_reg("PWM_FH2_STATUS_REG","- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - "
+                                   "PWM_FH2_OST_ON "
+                                   "PWM_FH2_CBC_ON");
+
 
 static Register reg_prescaler("PWM_CLK_CFG_REG",
                               "- - - - - - - - - - - - - - - - - - - - - - - - + + + + + + + PWM_CLK_PRESCALE");
@@ -8,16 +34,68 @@ static Register reg_fault_detect("PWM_FAULT_DETECT_REG",
                                  "- - - - - - - - - - - - - - - - - - - - - - - PWM_EVENT_F2 PWM_EVENT_F1 PWM_EVENT_F0 PWM_F2_POLE PWM_F1_POLE PWM_F0_POLE PWM_F2_EN PWM_F1_EN PWM_F0_EN");
 static Register timer0_status_reg("PWM_TIMER0_STATUS_REG",
                                   "- - - - - - - - - - - - - - - PWM_TIMER0_DIRECTION + + + + + + + + + + + + + + + PWM_TIMER0_VALUE");
-static Register pwm_int_raw_pwm_reg("INT_RAW_PWM_REG","- - INT_CAP2_INT_RAW INT_CAP1_INT_RAW INT_CAP0_INT_RAW INT_FH2_OST_INT_RAW INT_FH1_OST_INT_RAW INT_FH0_OST_INT_RAW"
-                                    " INT_FH2_CBC_INT_RAW INT_FH1_CBC_INT_RAW INT_FH0_CBC_INT_RAW INT_OP2_TEB_INT_RAW INT_OP1_TEB_INT_RAW INT_OP0_TEB_INT_RAW INT_OP2_TEA_INT_RAW"
-                                    " INT_OP1_TEA_INT_RAW INT_OP0_TEA_INT_RAW INT_FAULT2_CLR_INT_RAW INT_FAULT1_CLR_INT_RAW INT_FAULT0_CLR_INT_RAW INT_FAULT2_INT_RAW INT_FAULT1_INT_RAW"
-                                    " INT_FAULT0_INT_RAW INT_TIMER2_TEP_INT_RAW INT_TIMER1_TEP_INT_RAW INT_TIMER0_TEP_INT_RAW INT_TIMER2_TEZ_INT_RAW"
-                                    " INT_TIMER1_TEZ_INT_RAW INT_TIMER0_TEZ_INT_RAW INT_TIMER2_STOP_INT_RAW INT_TIMER1_STOP_INT_RAW INT_TIMER0_STOP_INT_RAW");
-static Register pwm_int_ena_pwm_reg("INT_ENA_PWM_REG","- - INT_CAP2_INT_ENA INT_CAP1_INT_ENA INT_CAP0_INT_ENA INT_FH2_OST_INT_ENA INT_FH1_OST_INT_ENA INT_FH0_OST_INT_ENA"
-                                    " INT_FH2_CBC_INT_ENA INT_FH1_CBC_INT_ENA INT_FH0_CBC_INT_ENA INT_OP2_TEB_INT_ENA INT_OP1_TEB_INT_ENA INT_OP0_TEB_INT_ENA INT_OP2_TEA_INT_ENA"
-                                    " INT_OP1_TEA_INT_ENA INT_OP0_TEA_INT_ENA INT_FAULT2_CLR_INT_ENA INT_FAULT1_CLR_INT_ENA INT_FAULT0_CLR_INT_ENA INT_FAULT2_INT_ENA INT_FAULT1_INT_ENA"
-                                    " INT_FAULT0_INT_ENA INT_TIMER2_TEP_INT_ENA INT_TIMER1_TEP_INT_ENA INT_TIMER0_TEP_INT_ENA INT_TIMER2_TEZ_INT_ENA"
-                                    " INT_TIMER1_TEZ_INT_ENA INT_TIMER0_TEZ_INT_ENA INT_TIMER2_STOP_INT_ENA INT_TIMER1_STOP_INT_ENA INT_TIMER0_STOP_INT_ENA");
+static Register pwm_int_raw_pwm_reg("INT_RAW_PWM_REG","- - "
+                                    "INT_CAP2_INT_RAW "
+                                    "INT_CAP1_INT_RAW "
+                                    "INT_CAP0_INT_RAW "
+                                    "INT_FH2_OST_INT_RAW "
+                                    "INT_FH1_OST_INT_RAW "
+                                    "INT_FH0_OST_INT_RAW "
+                                    "INT_FH2_CBC_INT_RAW "
+                                    "INT_FH1_CBC_INT_RAW "
+                                    "INT_FH0_CBC_INT_RAW "
+                                    "INT_OP2_TEB_INT_RAW "
+                                    "INT_OP1_TEB_INT_RAW "
+                                    "INT_OP0_TEB_INT_RAW "
+                                    "INT_OP2_TEA_INT_RAW "
+                                    "INT_OP1_TEA_INT_RAW "
+                                    "INT_OP0_TEA_INT_RAW "
+                                    "INT_FAULT2_CLR_INT_RAW "
+                                    "INT_FAULT1_CLR_INT_RAW "
+                                    "INT_FAULT0_CLR_INT_RAW "
+                                    "INT_FAULT2_INT_RAW "
+                                    "INT_FAULT1_INT_RAW "
+                                    "INT_FAULT0_INT_RAW "
+                                    "INT_TIMER2_TEP_INT_RAW "
+                                    "INT_TIMER1_TEP_INT_RAW "
+                                    "INT_TIMER0_TEP_INT_RAW "
+                                    "INT_TIMER2_TEZ_INT_RAW "
+                                    "INT_TIMER1_TEZ_INT_RAW "
+                                    "INT_TIMER0_TEZ_INT_RAW "
+                                    "INT_TIMER2_STOP_INT_RAW "
+                                    "INT_TIMER1_STOP_INT_RAW "
+                                    "INT_TIMER0_STOP_INT_RAW");
+static Register pwm_int_ena_pwm_reg("INT_ENA_PWM_REG","- - "
+                                    "INT_CAP2_INT_ENA "
+                                    "INT_CAP1_INT_ENA "
+                                    "INT_CAP0_INT_ENA "
+                                    "INT_FH2_OST_INT_ENA "
+                                    "INT_FH1_OST_INT_ENA "
+                                    "INT_FH0_OST_INT_ENA "
+                                    "INT_FH2_CBC_INT_ENA "
+                                    "INT_FH1_CBC_INT_ENA "
+                                    "INT_FH0_CBC_INT_ENA "
+                                    "INT_OP2_TEB_INT_ENA "
+                                    "INT_OP1_TEB_INT_ENA "
+                                    "INT_OP0_TEB_INT_ENA "
+                                    "INT_OP2_TEA_INT_ENA "
+                                    "INT_OP1_TEA_INT_ENA "
+                                    "INT_OP0_TEA_INT_ENA "
+                                    "INT_FAULT2_CLR_INT_ENA "
+                                    "INT_FAULT1_CLR_INT_ENA "
+                                    "INT_FAULT0_CLR_INT_ENA "
+                                    "INT_FAULT2_INT_ENA "
+                                    "INT_FAULT1_INT_ENA "
+                                    "INT_FAULT0_INT_ENA "
+                                    "INT_TIMER2_TEP_INT_ENA "
+                                    "INT_TIMER1_TEP_INT_ENA "
+                                    "INT_TIMER0_TEP_INT_ENA "
+                                    "INT_TIMER2_TEZ_INT_ENA "
+                                    "INT_TIMER1_TEZ_INT_ENA "
+                                    "INT_TIMER0_TEZ_INT_ENA "
+                                    "INT_TIMER2_STOP_INT_ENA "
+                                    "INT_TIMER1_STOP_INT_ENA "
+                                    "INT_TIMER0_STOP_INT_ENA");
 void BTS7960::showReg() {
 	uint32_t idx=_mcpwm_num;
 	INFO(" MCPWM[%d]",idx);
@@ -27,10 +105,16 @@ void BTS7960::showReg() {
 	reg_fault_detect.show();
 	timer0_status_reg.value(*(uint32_t*)MCPWM_TIMER0_STATUS_REG(idx));
 	timer0_status_reg.show();
-	/*   pwm_int_raw_pwm_reg.value(*(uint32_t*)MCMCPWM_INT_RAW_MCPWM_REG(idx));
-	   pwm_int_raw_pwm_reg.show();*/
+	pwm_int_raw_pwm_reg.value(*(uint32_t*)MCMCPWM_INT_RAW_MCPWM_REG(idx));
+	pwm_int_raw_pwm_reg.show();
 	pwm_int_ena_pwm_reg.value(*(uint32_t*)MCMCPWM_INT_ENA_MCPWM_REG(idx));
 	pwm_int_ena_pwm_reg.show();
+	pwm_fh0_status_reg.value(*(uint32_t*)MCPWM_FH0_STATUS_REG(idx));
+	pwm_fh0_status_reg.show();
+	pwm_fh1_status_reg.value(*(uint32_t*)MCPWM_FH1_STATUS_REG(idx));
+	pwm_fh1_status_reg.show();
+	pwm_fh2_status_reg.value(*(uint32_t*)MCPWM_FH2_STATUS_REG(idx));
+	pwm_fh2_status_reg.show();
 }
 
 
@@ -113,14 +197,14 @@ void BTS7960::right(float duty_cycle) {
 	if ( _rc != E_OK ) {
 		WARN("mcpwm_set_duty_type()=%d",_rc);
 	}
-	/*    float dc = mcpwm_get_duty(_mcpwm_num, _timer_num,MCPWM_OPR_B);
-	    INFO(" set/get duty cycle %5.1f/%5.1f",duty_cycle,dc);*/
+//	float dc = mcpwm_get_duty(_mcpwm_num, _timer_num,MCPWM_OPR_B);
+//	INFO(" set/get duty cycle %5.1f/%5.1f",duty_cycle,dc);
 }
 
 float weight=0.1;
 
 void BTS7960::setOutput(float dutyCycle) {
-//   INFO("MCPWM[%d] PWM=%f",_mcpwm_num,dutyCycle);
+//	INFO("MCPWM[%d] PWM=%.1f  last=%.1f",_mcpwm_num,dutyCycle,_lastDutyCycle);
 
 	if ( abs(_lastDutyCycle-dutyCycle)< 0.5) return;
 //   dutyCycle =  lastDutyCycle*(1-weight)+dutyCycle*weight;
@@ -179,7 +263,7 @@ Erc BTS7960::initialize() {
 	};
 	mcpwm_config_t pwm_config;
 	BZERO(pwm_config);
-	pwm_config.frequency = 10000; // frequency = 1000Hz,
+	pwm_config.frequency = 1000; // frequency = 1000Hz,
 	pwm_config.cmpr_a = 0;        // duty cycle of PWMxA = 0
 	pwm_config.cmpr_b = 0;        // duty cycle of PWMxb = 0
 	pwm_config.counter_mode = MCPWM_UP_COUNTER;

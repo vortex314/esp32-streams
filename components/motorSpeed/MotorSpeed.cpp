@@ -34,6 +34,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 		if( current() < 0.15 ) {
 			stop("no base current detected.");
 		};
+		_bts7960.showReg();
 
 		/*	if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 ) {
 				running=false;
@@ -68,7 +69,6 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
 	_controlTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tick) {
 		rpmMeasured.request();
 	});
-	running=true;
 }
 
 MotorSpeed::MotorSpeed(Connector* uext)
@@ -80,15 +80,14 @@ MotorSpeed::~MotorSpeed() {}
 
 void MotorSpeed::init() {
 	if (_bts7960.initialize()) {
-		WARN(" initialize motor failed ");
-		running=false;
-		deviceMessage="STOPPED : BTS7960 init failed ";
-	}
+		stop("STOPPED : BTS7960 init failed ");
+	} else
+		run();
 }
 
 void MotorSpeed::observeOn(Thread& t) {
 	_reportTimer.observeOn(t);
-//    _pulseTimer.observeOn(t);
+	_pulseTimer.observeOn(t);
 	_controlTimer.observeOn(t);
 }
 
@@ -97,7 +96,7 @@ void MotorSpeed::observeOn(Thread& t) {
 void MotorSpeed::pulse() {
 
 	static uint32_t pulse = 0;
-	static int rpmTargets[] = {0,  60, 120,  180, 120, 60, 0,  -60, -120,  -180, -120, -60};
+	static int rpmTargets[] = {0,  60, 120,   60, 0,  -60, -120,   -60};
 
 	/*    static int rpmTargets[] = {0,  30, 50,  100, 150, 100, 80,
 	                               40, 0,  -40, -80,-120,-80 -30

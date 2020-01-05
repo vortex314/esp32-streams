@@ -67,12 +67,14 @@ class Wait : public Flow<T, T> {
 class Poller : public TimerSource, public Sink<TimerMsg> {
 		std::vector<Requestable*> _requestables;
 		uint32_t _idx = 0;
+		uint32_t _loopTime;
 
 	public:
 		ValueFlow<bool> run = false;
-		Poller(uint32_t iv)
+		Poller(uint32_t loopTime)
 			: TimerSource(1, 1000, true) {
-			interval(iv);
+			_loopTime=loopTime;
+			interval(loopTime);
 			*this >> *this;
 		};
 
@@ -86,6 +88,7 @@ class Poller : public TimerSource, public Sink<TimerMsg> {
 
 		Poller& operator()(Requestable& rq) {
 			_requestables.push_back(&rq);
+			interval(_loopTime/(_requestables.size()));
 			return *this;
 		}
 };
@@ -177,7 +180,8 @@ extern "C" void app_main(void) {
 	Sys::hostname(S(HOSTNAME));
 	systemHostname = S(HOSTNAME);
 	systemBuild = __DATE__ " " __TIME__;
-	Poller& slowPoller = *new Poller(100);
+	Poller& slowPoller = *new Poller(1000);
+	Poller& rpmPoller = *new Poller(100);
 
 
 #ifdef MQTT_SERIAL
@@ -262,11 +266,14 @@ extern "C" void app_main(void) {
 	INFO(" init motor ");
 	rotaryEncoder.init();
 	rotaryEncoder.observeOn(motorThread);
-	rotaryEncoder.rpmMeasured >> motor.rpmMeasured; // ISR driven !
+	rotaryEncoder.rpmMeasured >> motor.rpmMeasured;
+	rotaryEncoder.isrCounter >> mqtt.toTopic<uint32_t>("motor/isrCounter");
 
 	motor.init();
 	motor.pwm >> *new Throttle<float>(100) >> mqtt.toTopic<float>("motor/pwm");
-	rotaryEncoder.rpmMeasured >> *new Throttle<int>(100) >> mqtt.toTopic<int>("motor/rpmMeasured");
+	motor.rpmMeasured >> *new Throttle<int>(100) >> mqtt.toTopic<int>("motor/rpmMeasured");
+	rpmPoller(rotaryEncoder.rpmMeasured);
+	motorThread | rpmPoller;
 
 	motor.KI == mqtt.topic<float>("motor/KI");
 	motor.KP == mqtt.topic<float>("motor/KP");
@@ -275,7 +282,7 @@ extern "C" void app_main(void) {
 	motor.rpmTarget == mqtt.topic<int>("motor/rpmTarget");
 	motor.running == mqtt.topic<bool>("motor/running");
 	motor.deviceMessage >> mqtt.toTopic<std::string>("motor/message");
-	slowPoller(motor.KI)(motor.KP)(motor.KD)(motor.rpmTarget)(motor.deviceMessage)(motor.running);
+	slowPoller(motor.KI)(motor.KP)(motor.KD)(motor.rpmTarget)(motor.deviceMessage)(motor.running)(rotaryEncoder.isrCounter)(motor.rpmMeasured);
 
 	motor.observeOn(motorThread);
 	xTaskCreatePinnedToCore([](void*) {

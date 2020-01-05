@@ -60,7 +60,6 @@ class MotorSpeed : public Device {
 		Erc selfTest(uint32_t level,std::string& message);
 		Erc initialize();
 		Erc hold();
-		Erc run();
 };
 
 #endif // MOTORSPEED_H
