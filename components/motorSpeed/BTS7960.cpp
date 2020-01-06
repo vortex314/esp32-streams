@@ -157,7 +157,6 @@ BTS7960::BTS7960(Connector* uext)
 
 void BTS7960::setDirection(float sign)
 {
-    INFO(" direction : %.1f old : %d ",sign,_directionTargetLast);
     if (sign < 0 && _directionTargetLast >= 0) {
         _rc = mcpwm_set_signal_low(_mcpwm_num, _timer_num, MCPWM_OPR_B);
         if ( _rc != E_OK ) {

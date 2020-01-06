@@ -35,7 +35,7 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
             stop("no base current detected.");
         };
         */
-        _bts7960.showReg();
+//       _bts7960.showReg();
 
         /*	if ( (pwm() > 20 || pwm() < -20)  && rpmMeasured()==0 ) {
         		running=false;
@@ -44,7 +44,6 @@ MotorSpeed::MotorSpeed(uint32_t pinLeftIS, uint32_t pinRightIS,
     });
 
     _pulseTimer >> *new LambdaSink<TimerMsg>([&](TimerMsg tm) {
-        INFO("next pulse");
         pulse();
     });
 
@@ -91,7 +90,7 @@ void MotorSpeed::init()
 void MotorSpeed::observeOn(Thread& t)
 {
     _reportTimer.observeOn(t);
-//    _pulseTimer.observeOn(t);
+    _pulseTimer.observeOn(t);
     _controlTimer.observeOn(t);
 }
 
